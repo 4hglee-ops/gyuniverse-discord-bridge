@@ -5,9 +5,9 @@ export function GET(request: Request): Response {
     openapi: "3.1.0",
     info: {
       title: "Gyuniverse Discord GPT Actions",
-      version: "1.0.0",
+      version: "1.1.0",
       description:
-        "Read-only GPT Actions for listing Discord text channels and reading recent messages from the configured Gyuniverse Discord server.",
+        "Read-only GPT Actions for listing Discord text channels, reading recent messages, and searching team Discord history in the configured Gyuniverse server.",
     },
     servers: [{ url: origin }],
     security: [{ bearerAuth: [] }],
@@ -114,6 +114,106 @@ export function GET(request: Request): Response {
           },
         },
       },
+      "/api/gpt/v1/search": {
+        get: {
+          operationId: "searchDiscordMessages",
+          summary: "Search Discord message history",
+          description:
+            "Searches accessible text channels in the configured Discord server. Filters can be combined to recover past discussions, decisions, tasks, and evidence.",
+          parameters: [
+            {
+              name: "query",
+              in: "query",
+              required: false,
+              description: "Message content search text.",
+              schema: { type: "string", maxLength: 1024 },
+            },
+            {
+              name: "channelId",
+              in: "query",
+              required: false,
+              description: "Optional Discord text channel ID returned by listDiscordChannels.",
+              schema: { type: "string" },
+            },
+            {
+              name: "authorId",
+              in: "query",
+              required: false,
+              description: "Optional Discord user ID to filter by author.",
+              schema: { type: "string" },
+            },
+            {
+              name: "after",
+              in: "query",
+              required: false,
+              description: "Only messages after this time. ISO 8601 date-time recommended.",
+              schema: { type: "string", format: "date-time" },
+            },
+            {
+              name: "before",
+              in: "query",
+              required: false,
+              description: "Only messages before this time. ISO 8601 date-time recommended.",
+              schema: { type: "string", format: "date-time" },
+            },
+            {
+              name: "limit",
+              in: "query",
+              required: false,
+              description: "Number of search results to return. Defaults to 25.",
+              schema: {
+                type: "integer",
+                minimum: 1,
+                maximum: 100,
+                default: 25,
+              },
+            },
+            {
+              name: "sort",
+              in: "query",
+              required: false,
+              description: "Search result ordering.",
+              schema: {
+                type: "string",
+                enum: ["newest", "oldest", "relevance"],
+                default: "newest",
+              },
+            },
+          ],
+          responses: {
+            "200": {
+              description: "Discord message search results",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    required: ["totalResults", "returnedResults", "messages"],
+                    properties: {
+                      totalResults: { type: "integer", minimum: 0 },
+                      returnedResults: { type: "integer", minimum: 0 },
+                      messages: {
+                        type: "array",
+                        items: { $ref: "#/components/schemas/BridgeMessage" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            "400": { $ref: "#/components/responses/BadRequest" },
+            "401": { $ref: "#/components/responses/Unauthorized" },
+            "404": { $ref: "#/components/responses/NotFound" },
+            "503": {
+              description: "Discord search index is not ready yet",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/Error" },
+                },
+              },
+            },
+          },
+        },
+      },
     },
     components: {
       securitySchemes: {
@@ -171,6 +271,7 @@ export function GET(request: Request): Response {
           required: ["error"],
           properties: {
             error: { type: "string" },
+            retryAfterSeconds: { type: ["number", "null"] },
           },
         },
       },
