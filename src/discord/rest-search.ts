@@ -8,6 +8,7 @@ import type { DiscordRestMessage } from "./rest-messages.js";
 const DISCORD_EPOCH_MS = 1420070400000n;
 const MAX_SEARCH_PAGE_SIZE = 25;
 const MAX_SEARCH_RESULTS = 100;
+const FALLBACK_MESSAGES_PER_CHANNEL = 100;
 
 export type DiscordMessageSearchSort =
   | "newest"
@@ -41,6 +42,9 @@ interface DiscordSearchIndexPendingResponse {
 export interface SearchGuildMessagesRestResult {
   totalResults: number;
   messages: DiscordRestMessage[];
+  searchMode: "discord-index" | "recent-fallback";
+  historyComplete: boolean;
+  scannedMessages?: number;
 }
 
 export class DiscordSearchIndexPendingError extends Error {
@@ -164,6 +168,85 @@ function isSearchIndexPending(
   );
 }
 
+function matchesFallbackFilters(
+  message: DiscordRestMessage,
+  options: SearchGuildMessagesRestOptions,
+): boolean {
+  const content = options.content?.trim().toLocaleLowerCase();
+
+  if (
+    content &&
+    !message.content.toLocaleLowerCase().includes(content)
+  ) {
+    return false;
+  }
+
+  if (
+    options.authorIds?.length &&
+    !options.authorIds.includes(message.author.id)
+  ) {
+    return false;
+  }
+
+  const timestamp = Date.parse(message.timestamp);
+
+  if (options.after && timestamp <= parseTimestamp(options.after, "after")) {
+    return false;
+  }
+
+  if (options.before && timestamp >= parseTimestamp(options.before, "before")) {
+    return false;
+  }
+
+  return true;
+}
+
+async function searchRecentMessagesFallback(
+  rest: REST,
+  options: SearchGuildMessagesRestOptions,
+): Promise<SearchGuildMessagesRestResult> {
+  const channelIds = options.channelIds ?? [];
+  const limit = options.limit ?? 25;
+  const matches: DiscordRestMessage[] = [];
+  let scannedMessages = 0;
+
+  for (const channelId of channelIds) {
+    const recentMessages = await rest.get(
+      Routes.channelMessages(channelId),
+      {
+        query: new URLSearchParams({
+          limit: String(FALLBACK_MESSAGES_PER_CHANNEL),
+        }),
+      },
+    ) as DiscordRestMessage[];
+
+    scannedMessages += recentMessages.length;
+
+    for (const message of recentMessages) {
+      if (matchesFallbackFilters(message, options)) {
+        matches.push(message);
+      }
+    }
+  }
+
+  matches.sort((a, b) => {
+    const difference =
+      Date.parse(a.timestamp) - Date.parse(b.timestamp);
+
+    return options.sort === "oldest"
+      ? difference
+      : -difference;
+  });
+
+  return {
+    totalResults: matches.length,
+    messages: matches.slice(0, limit),
+    searchMode: "recent-fallback",
+    historyComplete: false,
+    scannedMessages,
+  };
+}
+
 export async function searchGuildMessagesRest(
   rest: REST,
   guildId: string,
@@ -204,9 +287,7 @@ export async function searchGuildMessagesRest(
     ) as DiscordGuildMessagesSearchResponse | DiscordSearchIndexPendingResponse;
 
     if (isSearchIndexPending(response)) {
-      throw new DiscordSearchIndexPendingError(
-        response.retry_after,
-      );
+      return searchRecentMessagesFallback(rest, options);
     }
 
     totalResults = response.total_results;
@@ -231,5 +312,7 @@ export async function searchGuildMessagesRest(
   return {
     totalResults,
     messages: [...messages.values()],
+    searchMode: "discord-index",
+    historyComplete: true,
   };
 }

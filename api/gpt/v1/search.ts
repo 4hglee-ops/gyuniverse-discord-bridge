@@ -86,6 +86,9 @@ export async function GET(request: Request): Promise<Response> {
       {
         totalResults: search.totalResults,
         returnedResults: messages.length,
+        searchMode: search.searchMode,
+        historyComplete: search.historyComplete,
+        scannedMessages: search.scannedMessages ?? null,
         messages,
       },
       {

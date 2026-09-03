@@ -24,7 +24,7 @@ export function buildRestMcpServer(
 
   const server = new McpServer({
     name: "gyuniverse-discord-bridge",
-    version: "0.2.0",
+    version: "0.2.1",
   });
 
   server.registerTool(
@@ -151,7 +151,7 @@ export function buildRestMcpServer(
     "search_discord_messages",
     {
       description:
-        "Discord 서버의 접근 가능한 텍스트 채널에서 메시지를 검색합니다. 내용, 채널, 작성자, 기간을 조합해 과거 논의와 결정 근거를 찾을 수 있습니다.",
+        "Discord 서버의 접근 가능한 텍스트 채널에서 메시지를 검색합니다. 내용, 채널, 작성자, 기간을 조합해 과거 논의와 결정 근거를 찾을 수 있습니다. Discord 검색 인덱스가 준비되지 않은 경우 최근 메시지 범위에서 제한적으로 대체 검색합니다.",
       inputSchema: z.object({
         query: z
           .string()
@@ -258,6 +258,9 @@ export function buildRestMcpServer(
               {
                 totalResults: search.totalResults,
                 returnedResults: bridgeMessages.length,
+                searchMode: search.searchMode,
+                historyComplete: search.historyComplete,
+                scannedMessages: search.scannedMessages ?? null,
                 messages: bridgeMessages,
               },
               null,
