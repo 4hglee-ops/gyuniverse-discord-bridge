@@ -6,6 +6,7 @@ import { listTextChannelsRest } from "../discord/rest-channels.js";
 import { getRecentMessagesRest } from "../discord/rest-messages.js";
 import { searchGuildMessagesRest } from "../discord/rest-search.js";
 import { toBridgeMessageRest } from "../adapters/discord-rest-message-adapter.js";
+import { createTeamContextSnapshot } from "../context/team-context-snapshot.js";
 
 export interface RestMcpServerOptions {
   rest: REST;
@@ -24,7 +25,7 @@ export function buildRestMcpServer(
 
   const server = new McpServer({
     name: "gyuniverse-discord-bridge",
-    version: "0.2.1",
+    version: "0.3.0",
   });
 
   server.registerTool(
@@ -40,28 +41,14 @@ export function buildRestMcpServer(
       },
     },
     async () => {
-      const channels =
-        await listTextChannelsRest(
-          rest,
-          guildId,
-        );
-
-      const result = channels.map(
-        (channel) => ({
-          ...channel,
-          guildName,
-        }),
-      );
+      const channels = await listTextChannelsRest(rest, guildId);
+      const result = channels.map((channel) => ({ ...channel, guildName }));
 
       return {
         content: [
           {
             type: "text",
-            text: JSON.stringify(
-              result,
-              null,
-              2,
-            ),
+            text: JSON.stringify(result, null, 2),
           },
         ],
       };
@@ -94,15 +81,8 @@ export function buildRestMcpServer(
       },
     },
     async ({ channelId, limit }) => {
-      const channels =
-        await listTextChannelsRest(
-          rest,
-          guildId,
-        );
-
-      const channel = channels.find(
-        (item) => item.id === channelId,
-      );
+      const channels = await listTextChannelsRest(rest, guildId);
+      const channel = channels.find((item) => item.id === channelId);
 
       if (!channel) {
         throw new Error(
@@ -110,37 +90,77 @@ export function buildRestMcpServer(
         );
       }
 
-      const discordMessages =
-        await getRecentMessagesRest(
-          rest,
-          channelId,
-          limit,
-        );
+      const discordMessages = await getRecentMessagesRest(
+        rest,
+        channelId,
+        limit,
+      );
 
-      const bridgeMessages =
-        discordMessages.map(
-          (message) =>
-            toBridgeMessageRest(
-              message,
-              {
-                guildId,
-                guildName,
-                channelId,
-                channelName:
-                  channel.name,
-              },
-            ),
-        );
+      const bridgeMessages = discordMessages.map((message) =>
+        toBridgeMessageRest(message, {
+          guildId,
+          guildName,
+          channelId,
+          channelName: channel.name,
+        }),
+      );
 
       return {
         content: [
           {
             type: "text",
-            text: JSON.stringify(
-              bridgeMessages,
-              null,
-              2,
-            ),
+            text: JSON.stringify(bridgeMessages, null, 2),
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerTool(
+    "get_team_context_snapshot",
+    {
+      description:
+        "여러 Discord 텍스트 채널의 최근 메시지를 한 번에 모아 Team Brief, Decision Ledger, Delta Brief의 공통 입력으로 사용할 수 있는 증거 중심 Context Snapshot을 생성합니다. 이 도구는 메시지를 해석하거나 결정을 확정하지 않고 원본 근거와 freshness/completeness metadata만 반환합니다.",
+      inputSchema: z.object({
+        channelIds: z
+          .array(z.string().min(1))
+          .max(20)
+          .optional()
+          .describe("포함할 Discord 텍스트 채널 ID 목록. 생략하면 접근 가능한 모든 텍스트 채널"),
+        since: z
+          .string()
+          .optional()
+          .describe("이 시각 이후 메시지만 Snapshot에 포함. ISO 8601 date-time 권장"),
+        perChannelLimit: z
+          .number()
+          .int()
+          .min(1)
+          .max(100)
+          .default(50)
+          .describe("채널별 최근 메시지 조회 상한"),
+      }),
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async ({ channelIds, since, perChannelLimit }) => {
+      const result = await createTeamContextSnapshot({
+        rest,
+        guildId,
+        guildName,
+        channelIds,
+        since,
+        perChannelLimit,
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result, null, 2),
           },
         ],
       };
@@ -204,10 +224,7 @@ export function buildRestMcpServer(
       limit,
       sort,
     }) => {
-      const channels = await listTextChannelsRest(
-        rest,
-        guildId,
-      );
+      const channels = await listTextChannelsRest(rest, guildId);
       const channelById = new Map(
         channels.map((channel) => [channel.id, channel]),
       );
@@ -234,21 +251,19 @@ export function buildRestMcpServer(
         },
       );
 
-      const bridgeMessages = search.messages.flatMap(
-        (message) => {
-          const channel = channelById.get(message.channel_id);
-          if (!channel) return [];
+      const bridgeMessages = search.messages.flatMap((message) => {
+        const channel = channelById.get(message.channel_id);
+        if (!channel) return [];
 
-          return [
-            toBridgeMessageRest(message, {
-              guildId,
-              guildName,
-              channelId: channel.id,
-              channelName: channel.name,
-            }),
-          ];
-        },
-      );
+        return [
+          toBridgeMessageRest(message, {
+            guildId,
+            guildName,
+            channelId: channel.id,
+            channelName: channel.name,
+          }),
+        ];
+      });
 
       return {
         content: [

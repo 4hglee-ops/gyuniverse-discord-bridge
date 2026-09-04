@@ -5,9 +5,9 @@ export function GET(request: Request): Response {
     openapi: "3.1.0",
     info: {
       title: "Gyuniverse Discord GPT Actions",
-      version: "1.1.1",
+      version: "1.2.0",
       description:
-        "Read-only GPT Actions for listing Discord text channels, reading recent messages, and searching team Discord history in the configured Gyuniverse server.",
+        "Read-only GPT Actions for listing Discord channels, reading recent messages, searching history, and building a shared Team Context Snapshot for Team Brief and Decision Ledger workflows.",
     },
     servers: [{ url: origin }],
     security: [{ bearerAuth: [] }],
@@ -60,20 +60,18 @@ export function GET(request: Request): Response {
           operationId: "getRecentDiscordMessages",
           summary: "Read recent messages from a Discord text channel",
           description:
-            "Returns recent messages in chronological order for an accessible Discord text channel. Call listDiscordChannels first when the channel ID is unknown.",
+            "Returns recent messages for an accessible Discord text channel. Call listDiscordChannels first when the channel ID is unknown.",
           parameters: [
             {
               name: "channelId",
               in: "query",
               required: true,
-              description: "Discord text channel ID returned by listDiscordChannels.",
               schema: { type: "string" },
             },
             {
               name: "limit",
               in: "query",
               required: false,
-              description: "Number of recent messages to return. Defaults to 20.",
               schema: {
                 type: "integer",
                 minimum: 1,
@@ -114,53 +112,98 @@ export function GET(request: Request): Response {
           },
         },
       },
+      "/api/gpt/v1/context-snapshot": {
+        get: {
+          operationId: "getTeamContextSnapshot",
+          summary: "Build a shared Discord Team Context Snapshot",
+          description:
+            "Collects recent messages across multiple accessible Discord channels into one evidence-oriented snapshot with freshness and completeness metadata. Use this as the primary input for Team Brief, Decision Ledger, and Delta Brief. It does not itself infer decisions or completion states.",
+          parameters: [
+            {
+              name: "channelIds",
+              in: "query",
+              required: false,
+              description:
+                "Comma-separated Discord channel IDs. Omit to include every accessible text channel. Maximum 20 channels.",
+              schema: { type: "string" },
+            },
+            {
+              name: "since",
+              in: "query",
+              required: false,
+              description:
+                "Only include messages at or after this time. ISO 8601 date-time recommended.",
+              schema: { type: "string", format: "date-time" },
+            },
+            {
+              name: "perChannelLimit",
+              in: "query",
+              required: false,
+              description:
+                "Maximum recent messages fetched per channel. Defaults to 50.",
+              schema: {
+                type: "integer",
+                minimum: 1,
+                maximum: 100,
+                default: 50,
+              },
+            },
+          ],
+          responses: {
+            "200": {
+              description: "Discord Team Context Snapshot",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/TeamContextSnapshot" },
+                },
+              },
+            },
+            "400": { $ref: "#/components/responses/BadRequest" },
+            "401": { $ref: "#/components/responses/Unauthorized" },
+          },
+        },
+      },
       "/api/gpt/v1/search": {
         get: {
           operationId: "searchDiscordMessages",
           summary: "Search Discord message history",
           description:
-            "Searches accessible text channels in the configured Discord server. Filters can be combined to recover past discussions, decisions, tasks, and evidence. If Discord's historical search index is not ready, the bridge falls back to scanning up to the latest 100 messages per selected channel and reports that limitation in the response metadata.",
+            "Searches accessible text channels. If Discord historical search is unavailable, the bridge falls back to recent messages and reports the limitation.",
           parameters: [
             {
               name: "query",
               in: "query",
               required: false,
-              description: "Message content search text.",
               schema: { type: "string", maxLength: 1024 },
             },
             {
               name: "channelId",
               in: "query",
               required: false,
-              description: "Optional Discord text channel ID returned by listDiscordChannels.",
               schema: { type: "string" },
             },
             {
               name: "authorId",
               in: "query",
               required: false,
-              description: "Optional Discord user ID to filter by author.",
               schema: { type: "string" },
             },
             {
               name: "after",
               in: "query",
               required: false,
-              description: "Only messages after this time. ISO 8601 date-time recommended.",
               schema: { type: "string", format: "date-time" },
             },
             {
               name: "before",
               in: "query",
               required: false,
-              description: "Only messages before this time. ISO 8601 date-time recommended.",
               schema: { type: "string", format: "date-time" },
             },
             {
               name: "limit",
               in: "query",
               required: false,
-              description: "Number of search results to return. Defaults to 25.",
               schema: {
                 type: "integer",
                 minimum: 1,
@@ -172,7 +215,6 @@ export function GET(request: Request): Response {
               name: "sort",
               in: "query",
               required: false,
-              description: "Search result ordering.",
               schema: {
                 type: "string",
                 enum: ["newest", "oldest", "relevance"],
@@ -201,19 +243,11 @@ export function GET(request: Request): Response {
                       searchMode: {
                         type: "string",
                         enum: ["discord-index", "recent-fallback"],
-                        description:
-                          "discord-index means Discord historical search was used. recent-fallback means only recent messages were scanned locally.",
                       },
-                      historyComplete: {
-                        type: "boolean",
-                        description:
-                          "True only when the result can be treated as a full Discord historical search for the selected filters.",
-                      },
+                      historyComplete: { type: "boolean" },
                       scannedMessages: {
                         type: ["integer", "null"],
                         minimum: 0,
-                        description:
-                          "Number of recent messages scanned during fallback mode; null for normal Discord index search.",
                       },
                       messages: {
                         type: "array",
@@ -279,6 +313,98 @@ export function GET(request: Request): Response {
             attachments: {
               type: "array",
               items: { $ref: "#/components/schemas/BridgeAttachment" },
+            },
+          },
+        },
+        TeamContextChannelSnapshot: {
+          type: "object",
+          required: [
+            "channelId",
+            "channelName",
+            "fetchedMessages",
+            "returnedMessages",
+            "oldestFetchedAt",
+            "newestFetchedAt",
+            "windowComplete",
+          ],
+          properties: {
+            channelId: { type: "string" },
+            channelName: { type: "string" },
+            fetchedMessages: { type: "integer", minimum: 0 },
+            returnedMessages: { type: "integer", minimum: 0 },
+            oldestFetchedAt: { type: ["string", "null"], format: "date-time" },
+            newestFetchedAt: { type: ["string", "null"], format: "date-time" },
+            windowComplete: { type: "boolean" },
+          },
+        },
+        TeamContextSnapshot: {
+          type: "object",
+          required: [
+            "snapshotAt",
+            "source",
+            "server",
+            "scope",
+            "freshness",
+            "completeness",
+            "channels",
+            "authors",
+            "messageCount",
+            "messages",
+          ],
+          properties: {
+            snapshotAt: { type: "string", format: "date-time" },
+            source: { type: "string", enum: ["discord"] },
+            server: {
+              type: "object",
+              required: ["id", "name"],
+              properties: {
+                id: { type: "string" },
+                name: { type: "string" },
+              },
+            },
+            scope: {
+              type: "object",
+              required: ["since", "perChannelLimit", "channelCount"],
+              properties: {
+                since: { type: ["string", "null"], format: "date-time" },
+                perChannelLimit: { type: "integer", minimum: 1, maximum: 100 },
+                channelCount: { type: "integer", minimum: 0 },
+              },
+            },
+            freshness: {
+              type: "object",
+              required: ["newestMessageAt"],
+              properties: {
+                newestMessageAt: { type: ["string", "null"], format: "date-time" },
+              },
+            },
+            completeness: {
+              type: "object",
+              required: ["historyComplete", "note"],
+              properties: {
+                historyComplete: { type: "boolean" },
+                note: { type: "string" },
+              },
+            },
+            channels: {
+              type: "array",
+              items: { $ref: "#/components/schemas/TeamContextChannelSnapshot" },
+            },
+            authors: {
+              type: "array",
+              items: {
+                type: "object",
+                required: ["authorId", "authorName"],
+                properties: {
+                  authorId: { type: "string" },
+                  authorName: { type: "string" },
+                },
+              },
+            },
+            messageCount: { type: "integer", minimum: 0 },
+            messages: {
+              type: "array",
+              items: { $ref: "#/components/schemas/BridgeMessage" },
             },
           },
         },
