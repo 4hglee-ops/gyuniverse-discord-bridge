@@ -5,7 +5,7 @@ export function GET(request: Request): Response {
     openapi: "3.1.0",
     info: {
       title: "Gyuniverse Discord GPT Actions",
-      version: "1.1.0",
+      version: "1.1.1",
       description:
         "Read-only GPT Actions for listing Discord text channels, reading recent messages, and searching team Discord history in the configured Gyuniverse server.",
     },
@@ -119,7 +119,7 @@ export function GET(request: Request): Response {
           operationId: "searchDiscordMessages",
           summary: "Search Discord message history",
           description:
-            "Searches accessible text channels in the configured Discord server. Filters can be combined to recover past discussions, decisions, tasks, and evidence.",
+            "Searches accessible text channels in the configured Discord server. Filters can be combined to recover past discussions, decisions, tasks, and evidence. If Discord's historical search index is not ready, the bridge falls back to scanning up to the latest 100 messages per selected channel and reports that limitation in the response metadata.",
           parameters: [
             {
               name: "query",
@@ -187,10 +187,34 @@ export function GET(request: Request): Response {
                 "application/json": {
                   schema: {
                     type: "object",
-                    required: ["totalResults", "returnedResults", "messages"],
+                    required: [
+                      "totalResults",
+                      "returnedResults",
+                      "searchMode",
+                      "historyComplete",
+                      "scannedMessages",
+                      "messages",
+                    ],
                     properties: {
                       totalResults: { type: "integer", minimum: 0 },
                       returnedResults: { type: "integer", minimum: 0 },
+                      searchMode: {
+                        type: "string",
+                        enum: ["discord-index", "recent-fallback"],
+                        description:
+                          "discord-index means Discord historical search was used. recent-fallback means only recent messages were scanned locally.",
+                      },
+                      historyComplete: {
+                        type: "boolean",
+                        description:
+                          "True only when the result can be treated as a full Discord historical search for the selected filters.",
+                      },
+                      scannedMessages: {
+                        type: ["integer", "null"],
+                        minimum: 0,
+                        description:
+                          "Number of recent messages scanned during fallback mode; null for normal Discord index search.",
+                      },
                       messages: {
                         type: "array",
                         items: { $ref: "#/components/schemas/BridgeMessage" },
@@ -203,14 +227,6 @@ export function GET(request: Request): Response {
             "400": { $ref: "#/components/responses/BadRequest" },
             "401": { $ref: "#/components/responses/Unauthorized" },
             "404": { $ref: "#/components/responses/NotFound" },
-            "503": {
-              description: "Discord search index is not ready yet",
-              content: {
-                "application/json": {
-                  schema: { $ref: "#/components/schemas/Error" },
-                },
-              },
-            },
           },
         },
       },
@@ -271,7 +287,6 @@ export function GET(request: Request): Response {
           required: ["error"],
           properties: {
             error: { type: "string" },
-            retryAfterSeconds: { type: ["number", "null"] },
           },
         },
       },
