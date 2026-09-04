@@ -5,6 +5,7 @@ import {
   normalizeScope,
   nowSeconds,
   oauthTeamCode,
+  publicBaseUrl,
   RegisteredClientPayload,
   scopeIsAllowed,
   signEnvelope,
@@ -168,8 +169,9 @@ async function post(request: Request): Promise<Response> {
   const redirect = new URL(parsed.params.redirectUri);
   redirect.searchParams.set("code", code);
   if (parsed.params.state) redirect.searchParams.set("state", parsed.params.state);
+  redirect.searchParams.set("iss", publicBaseUrl());
 
-  return Response.redirect(redirect.toString(), 302);
+  return Response.redirect(redirect.toString(), 303);
 }
 
 export const GET = get;
