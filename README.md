@@ -1,10 +1,6 @@
 <div align="center">
 
-# 🌌 Gyuniverse Discord Bridge
-
-### Turn team conversations into shared AI context.
-
-Discord에 흩어진 팀 대화를 **ChatGPT · Claude가 근거와 함께 읽고 이해할 수 있도록 연결하는 AI Context Bridge**
+<img src="./assets/gyuniverse-discord-bridge-banner.png" alt="Gyuniverse Discord Bridge" width="100%" />
 
 <br/>
 
@@ -22,12 +18,8 @@ Discord에 흩어진 팀 대화를 **ChatGPT · Claude가 근거와 함께 읽�
   <img src="https://img.shields.io/badge/Access-Team%20Only-2EA44F?style=flat-square" alt="Team Only" />
 </p>
 
-<br/>
-
 **Discord → Bridge → AI**  
 한 번 연결한 팀 Discord를 여러 AI 클라이언트에서 **공용 팀 컨텍스트**로 활용합니다.
-
-<br/>
 
 [⚡ Quick Start](#-quick-start) · [✨ Features](#-features) · [💡 Use Cases](#-use-cases) · [🏗 Architecture](#-architecture) · [📚 Docs](#-docs) · [🔐 Security](#-security)
 
@@ -88,8 +80,6 @@ ChatGPT GPTs, Claude Code, Claude Chat / Cowork에서 같은 팀 컨텍스트를
 
 ## ✨ Features
 
-### Discord Read Layer
-
 | Status | 기능 | 설명 |
 | :---: | --- | --- |
 | ✅ | 채널 목록 조회 | Bot이 접근 가능한 Discord 채널 확인 |
@@ -109,7 +99,7 @@ ChatGPT GPTs, Claude Code, Claude Chat / Cowork에서 같은 팀 컨텍스트를
 ❌ 메시지 삭제
 ```
 
-AI가 **팀 대화를 읽는 것**과 **팀 공간을 조작하는 것**을 분리하는 방향입니다.
+AI가 **팀 대화를 읽는 것**과 **팀 공간을 조작하는 것**을 분리합니다.
 
 ---
 
@@ -118,49 +108,20 @@ AI가 **팀 대화를 읽는 것**과 **팀 공간을 조작하는 것**을 분�
 ### Production Endpoint
 
 ```text
-Remote MCP
 https://gyuniverse-discord-bridge.vercel.app/mcp
 ```
 
-<table>
-<tr>
-<th>Client</th>
-<th>Connection</th>
-<th>Authentication</th>
-<th>Status</th>
-</tr>
-<tr>
-<td>ChatGPT GPTs</td>
-<td>GPT Actions / OpenAPI</td>
-<td>Bearer API Key</td>
-<td>✅ Verified</td>
-</tr>
-<tr>
-<td>Claude Code</td>
-<td>Remote HTTP MCP</td>
-<td>Bearer Secret</td>
-<td>✅ Verified</td>
-</tr>
-<tr>
-<td>Claude Chat</td>
-<td>Custom Connector</td>
-<td>OAuth + DCR + PKCE</td>
-<td>✅ Verified</td>
-</tr>
-<tr>
-<td>Claude Cowork</td>
-<td>Claude Connector</td>
-<td>OAuth Connector</td>
-<td>🧪 Supported</td>
-</tr>
-</table>
+| Client | Connection | Authentication | Status |
+| --- | --- | --- | :---: |
+| ChatGPT GPTs | GPT Actions / OpenAPI | Bearer API Key | ✅ |
+| Claude Code | Remote HTTP MCP | Bearer Secret | ✅ |
+| Claude Chat | Custom Connector | OAuth + DCR + PKCE | ✅ |
+| Claude Cowork | Claude Connector | OAuth Connector | 🧪 |
 
 <details>
-<summary><b>🟢 ChatGPT GPTs 연결 방법</b></summary>
+<summary><b>🟢 ChatGPT GPTs 연결</b></summary>
 
 <br/>
-
-Custom GPT에서는 **GPT Actions / OpenAPI** 방식으로 연결합니다.
 
 ```text
 OpenAPI Schema
@@ -188,22 +149,15 @@ getRecentDiscordMessages
 searchDiscordMessages
 ```
 
-상세 설정: [`docs/TEAM_AI_CONNECTION_QUICKSTART.md`](docs/TEAM_AI_CONNECTION_QUICKSTART.md)
-
 </details>
 
 <details>
-<summary><b>🟠 Claude Code 연결 방법</b></summary>
+<summary><b>🟠 Claude Code 연결</b></summary>
 
 <br/>
 
-Remote HTTP MCP + Bearer Header 방식입니다.
-
-**Windows PowerShell**
-
 ```powershell
 $env:GYUNIVERSE_MCP_TOKEN = "<MCP_SHARED_SECRET>"
-
 claude mcp add --transport http gyuniverse-discord https://gyuniverse-discord-bridge.vercel.app/mcp --header "Authorization: Bearer $env:GYUNIVERSE_MCP_TOKEN"
 ```
 
@@ -224,21 +178,15 @@ search_discord_messages
 </details>
 
 <details>
-<summary><b>🟠 Claude Chat / Cowork 연결 방법</b></summary>
+<summary><b>🟠 Claude Chat / Cowork 연결</b></summary>
 
 <br/>
-
-Claude에서:
 
 ```text
 Customize
 → Connectors
 → Add custom connector
-```
 
-입력값:
-
-```text
 Name
 Gyuniverse Discord
 
@@ -252,8 +200,6 @@ OAuth Client
 클라이언트 ID 없음 — 자동 등록
 ```
 
-Bridge는 **OAuth Dynamic Client Registration(DCR)** 을 지원합니다.
-
 현재 OAuth Scope:
 
 ```text
@@ -262,58 +208,52 @@ discord:read
 
 </details>
 
+상세 연결 가이드: [`docs/TEAM_AI_CONNECTION_QUICKSTART.md`](docs/TEAM_AI_CONNECTION_QUICKSTART.md)
+
 ---
 
 ## 💡 Use Cases
 
-### 01 · 최근 대화 요약
+### 최근 대화 요약
 
 ```text
 노트-자원 채널 최근 메시지 20개 읽어서 중요한 내용만 요약해줘.
 ```
 
-### 02 · 과거 논의 검색
+### 과거 논의 검색
 
 ```text
 Discord 전체에서 Jira가 언급된 과거 메시지를 찾아줘.
 작성자, 채널, 시간과 함께 중요한 내용만 정리해줘.
 ```
 
-### 03 · 현재 팀 상태 브리핑
+### 현재 팀 상태 브리핑
 
 ```text
 Discord를 확인해서 현재 팀 상황을
-
-- 확정된 결정
-- 진행 중 작업
-- 담당 작업
-- Blocker
-- 미응답 질문
-- 미확정 제안
-
+확정된 결정 / 진행 중 작업 / 담당 작업 / Blocker / 미응답 질문 / 미확정 제안
 으로 나눠서 정리해줘.
 ```
 
-### 04 · Decision Baseline 대조
+### Decision Baseline 대조
 
 ```text
 최근 Discord 대화를 기존 Decision Baseline과 대조해서
 확정된 결정과 아직 열린 제안을 구분해줘.
 ```
 
-### 05 · 지난 24시간 변경 추적
+### 변경 사항 추적
 
 ```text
-지난 24시간 동안
-새 결정, 변경된 결정, 새 작업, 진행 변화,
-Blocker, 질문, 제안만 정리해줘.
+지난 24시간 동안 새 결정, 변경된 결정, 새 작업,
+진행 변화, Blocker, 질문, 제안만 정리해줘.
 ```
 
 ---
 
 ## 🧠 Why this exists
 
-팀 프로젝트에서 중요한 정보는 대부분 대화 속에 섞여 있습니다.
+팀 프로젝트의 중요한 정보는 대부분 대화 속에 섞여 있습니다.
 
 ```text
 "이거 우리 팀에서 결정한 거 맞아?"
@@ -323,9 +263,7 @@ Blocker, 질문, 제안만 정리해줘.
 "이 제안은 확정인가, 아직 논의 중인가?"
 ```
 
-일반적인 AI는 이 질문에 답할 때 **실제 팀 대화를 자동으로 알 수 없습니다.**
-
-Gyuniverse Bridge는 AI가 Discord를 직접 조회해서 답할 수 있도록 연결합니다.
+Gyuniverse Bridge는 AI가 Discord를 직접 조회하고 근거를 확인한 뒤 답할 수 있도록 연결합니다.
 
 ```text
 Team Conversation
@@ -337,7 +275,7 @@ Structured Context
 AI-assisted Decision / Work Tracking
 ```
 
-따라서 목표는 단순한 Discord 검색기가 아니라 **팀의 실제 상태를 설명할 수 있는 Context Infrastructure**입니다.
+목표는 단순한 Discord 검색기가 아니라 **팀의 실제 상태를 설명할 수 있는 Context Infrastructure**입니다.
 
 ---
 
@@ -347,18 +285,14 @@ AI-assisted Decision / Work Tracking
 flowchart TD
     D[Discord API] --> B[discord.js]
     B --> C[Discord Context Layer]
-
     C --> L[Channel Listing]
     C --> R[Recent Messages]
     C --> S[History Search]
-
     L --> G[Gyuniverse Bridge]
     R --> G
     S --> G
-
     G --> M[Remote MCP]
     G --> A[GPT Actions API]
-
     M --> CC[Claude Code]
     M --> CH[Claude Chat / Cowork]
     A --> GPT[ChatGPT GPTs]
@@ -380,8 +314,6 @@ flowchart TD
 
 ## 🧪 Smoke Test
 
-아래 세 가지가 되면 기본 연결 성공입니다.
-
 - [ ] Discord 채널 목록 조회
 - [ ] 특정 채널 최근 메시지 조회
 - [ ] 과거 메시지 키워드 검색
@@ -391,9 +323,7 @@ flowchart TD
 ```text
 노트-자원, 일반, 세션-계획 채널을 확인해서
 현재 팀 상태를
-
 결정됨 / 진행 중 / 담당 작업 / Blocker / 미응답 질문 / 미확정 제안
-
 으로 나눠서 정리해줘.
 
 완료 여부나 담당자는 Discord 근거가 명확한 경우만 확정하고,
@@ -420,20 +350,18 @@ flowchart TD
 
 이 Bridge는 팀 Discord 대화를 AI가 읽을 수 있게 연결하기 때문에 **Secret 관리가 핵심입니다.**
 
-### Never commit
-
 ```text
-Discord Bot Token
-MCP_SHARED_SECRET
-MCP_OAUTH_TEAM_CODE
-GPT Actions API Key
-OAuth related secrets
+Never commit:
+- Discord Bot Token
+- MCP_SHARED_SECRET
+- MCP_OAUTH_TEAM_CODE
+- GPT Actions API Key
+- OAuth related secrets
 ```
 
 Secret은 `.env` 또는 배포 플랫폼의 Environment Variables로 관리합니다.
 
-> ⚠️ 하나의 Shared Secret을 여러 사람에게 제공하면, 그 Secret이 허용하는 Bridge 권한도 함께 공유됩니다.  
-> 팀 규모가 커지면 사용자별 인증·권한 분리를 권장합니다.
+> ⚠️ 하나의 Shared Secret을 여러 사람에게 제공하면 그 Secret이 허용하는 Bridge 권한도 함께 공유됩니다. 팀 규모가 커지면 사용자별 인증·권한 분리를 권장합니다.
 
 ---
 
@@ -443,23 +371,11 @@ Secret은 `.env` 또는 배포 플랫폼의 Environment Variables로 관리합�
 git clone https://github.com/4hglee-ops/gyuniverse-discord-bridge.git
 cd gyuniverse-discord-bridge
 pnpm install
-```
-
-개발 서버:
-
-```bash
 pnpm dev
 ```
 
-TypeScript 검사:
-
 ```bash
 pnpm typecheck
-```
-
-STDIO MCP:
-
-```bash
 pnpm mcp:stdio
 ```
 
@@ -473,15 +389,12 @@ flowchart LR
     J[Jira] -. future .-> U
     G[GitHub] -. future .-> U
     N[Notion] -. future .-> U
-
     U --> S[Team State]
-
     S --> D1[Decisions]
     S --> W[Work]
     S --> B[Blockers]
     S --> Q[Questions]
     S --> P[Proposals]
-
     D1 --> AI[AI Team Intelligence Layer]
     W --> AI
     B --> AI
@@ -489,29 +402,24 @@ flowchart LR
     P --> AI
 ```
 
-### Current
-
+**Current**  
 `Discord Read → Search → AI Context`
 
-### Next possibility
-
+**Next possibility**  
 `Discord + Jira + GitHub + Notion → Unified Team Context`
 
-### Long-term direction
-
-**“팀에서 실제로 무엇이 결정됐고, 무엇이 진행 중이며, 무엇이 바뀌었는가?”**를 여러 협업 도구의 Evidence와 함께 추적하는 Team Context Infrastructure.
+**Long-term direction**  
+“팀에서 실제로 무엇이 결정됐고, 무엇이 진행 중이며, 무엇이 바뀌었는가?”를 여러 협업 도구의 Evidence와 함께 추적하는 Team Context Infrastructure.
 
 ---
 
 <div align="center">
 
-<br/>
+<img src="./assets/gyuniverse-discord-bridge-logo.png" alt="Gyuniverse Discord Bridge Logo" width="150" />
 
 ### 🌌 Gyuniverse
 
 **Discord conversations → Shared context → Better team decisions**
-
-<br/>
 
 <sub>Built for the Gyuniverse team.</sub>
 
