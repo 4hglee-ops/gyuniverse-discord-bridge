@@ -7,6 +7,10 @@ import { getRecentMessagesRest } from "../discord/rest-messages.js";
 import { searchGuildMessagesRest } from "../discord/rest-search.js";
 import { toBridgeMessageRest } from "../adapters/discord-rest-message-adapter.js";
 import { createTeamContextSnapshot } from "../context/team-context-snapshot.js";
+import {
+  createTeamBriefContext,
+  createTeamDeltaContext,
+} from "../context/team-context-workflows.js";
 
 export interface RestMcpServerOptions {
   rest: REST;
@@ -25,7 +29,7 @@ export function buildRestMcpServer(
 
   const server = new McpServer({
     name: "gyuniverse-discord-bridge",
-    version: "0.3.0",
+    version: "0.4.0",
   });
 
   server.registerTool(
@@ -61,17 +65,8 @@ export function buildRestMcpServer(
       description:
         "지정한 Discord 텍스트 채널의 최근 메시지를 조회합니다.",
       inputSchema: z.object({
-        channelId: z
-          .string()
-          .min(1)
-          .describe("Discord 텍스트 채널 ID"),
-        limit: z
-          .number()
-          .int()
-          .min(1)
-          .max(100)
-          .default(20)
-          .describe("가져올 최근 메시지 개수"),
+        channelId: z.string().min(1),
+        limit: z.number().int().min(1).max(100).default(20),
       }),
       annotations: {
         readOnlyHint: true,
@@ -120,24 +115,11 @@ export function buildRestMcpServer(
     "get_team_context_snapshot",
     {
       description:
-        "여러 Discord 텍스트 채널의 최근 메시지를 한 번에 모아 Team Brief, Decision Ledger, Delta Brief의 공통 입력으로 사용할 수 있는 증거 중심 Context Snapshot을 생성합니다. 이 도구는 메시지를 해석하거나 결정을 확정하지 않고 원본 근거와 freshness/completeness metadata만 반환합니다.",
+        "여러 Discord 채널의 최근 메시지를 하나의 Evidence Pack으로 모읍니다. Team Brief, Decision Ledger, Delta Brief의 공통 원본 입력용이며 의미 판정은 하지 않습니다.",
       inputSchema: z.object({
-        channelIds: z
-          .array(z.string().min(1))
-          .max(20)
-          .optional()
-          .describe("포함할 Discord 텍스트 채널 ID 목록. 생략하면 접근 가능한 모든 텍스트 채널"),
-        since: z
-          .string()
-          .optional()
-          .describe("이 시각 이후 메시지만 Snapshot에 포함. ISO 8601 date-time 권장"),
-        perChannelLimit: z
-          .number()
-          .int()
-          .min(1)
-          .max(100)
-          .default(50)
-          .describe("채널별 최근 메시지 조회 상한"),
+        channelIds: z.array(z.string().min(1)).max(20).optional(),
+        since: z.string().optional(),
+        perChannelLimit: z.number().int().min(1).max(100).default(50),
       }),
       annotations: {
         readOnlyHint: true,
@@ -168,45 +150,99 @@ export function buildRestMcpServer(
   );
 
   server.registerTool(
+    "get_team_brief_context",
+    {
+      description:
+        "현재 팀 상태 브리핑을 만들기 위한 Snapshot + 공통 Team Brief v2 판정/출력 Contract를 반환합니다. 이 결과를 읽고 필요한 과거 결정만 search_discord_messages로 보완한 뒤 contract.sections 순서로 브리핑하세요.",
+      inputSchema: z.object({
+        channelIds: z.array(z.string().min(1)).max(20).optional(),
+        since: z
+          .string()
+          .optional()
+          .describe("선택적 최근 범위 시작 시각. 생략하면 최근 메시지 bounded snapshot"),
+        perChannelLimit: z.number().int().min(1).max(100).default(50),
+      }),
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async ({ channelIds, since, perChannelLimit }) => {
+      const result = await createTeamBriefContext({
+        rest,
+        guildId,
+        guildName,
+        channelIds,
+        since,
+        perChannelLimit,
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerTool(
+    "get_team_delta_context",
+    {
+      description:
+        "기준 시각 이후 무엇이 바뀌었는지 Delta Brief를 만들기 위한 Snapshot + Delta Brief v1 Contract를 반환합니다. since를 생략하면 기본 24시간을 사용합니다.",
+      inputSchema: z.object({
+        channelIds: z.array(z.string().min(1)).max(20).optional(),
+        since: z.string().optional(),
+        lookbackHours: z.number().int().min(1).max(168).default(24),
+        perChannelLimit: z.number().int().min(1).max(100).default(50),
+      }),
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async ({ channelIds, since, lookbackHours, perChannelLimit }) => {
+      const result = await createTeamDeltaContext({
+        rest,
+        guildId,
+        guildName,
+        channelIds,
+        since,
+        lookbackHours,
+        perChannelLimit,
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerTool(
     "search_discord_messages",
     {
       description:
-        "Discord 서버의 접근 가능한 텍스트 채널에서 메시지를 검색합니다. 내용, 채널, 작성자, 기간을 조합해 과거 논의와 결정 근거를 찾을 수 있습니다. Discord 검색 인덱스가 준비되지 않은 경우 최근 메시지 범위에서 제한적으로 대체 검색합니다.",
+        "Discord 서버의 접근 가능한 텍스트 채널에서 메시지를 검색합니다. 과거 결정 이유, 변경 이력, 특정 키워드/기간/작성자 Evidence 보완에 사용합니다. Discord 검색 인덱스가 준비되지 않은 경우 최근 메시지 범위에서 제한적으로 대체 검색합니다.",
       inputSchema: z.object({
-        query: z
-          .string()
-          .max(1024)
-          .optional()
-          .describe("메시지 내용 검색어"),
-        channelId: z
-          .string()
-          .min(1)
-          .optional()
-          .describe("특정 Discord 텍스트 채널 ID"),
-        authorId: z
-          .string()
-          .min(1)
-          .optional()
-          .describe("특정 Discord 작성자 사용자 ID"),
-        after: z
-          .string()
-          .optional()
-          .describe("이 시각 이후 메시지. ISO 8601 date-time 권장"),
-        before: z
-          .string()
-          .optional()
-          .describe("이 시각 이전 메시지. ISO 8601 date-time 권장"),
-        limit: z
-          .number()
-          .int()
-          .min(1)
-          .max(100)
-          .default(25)
-          .describe("반환할 검색 결과 개수"),
-        sort: z
-          .enum(["newest", "oldest", "relevance"])
-          .default("newest")
-          .describe("검색 결과 정렬 방식"),
+        query: z.string().max(1024).optional(),
+        channelId: z.string().min(1).optional(),
+        authorId: z.string().min(1).optional(),
+        after: z.string().optional(),
+        before: z.string().optional(),
+        limit: z.number().int().min(1).max(100).default(25),
+        sort: z.enum(["newest", "oldest", "relevance"]).default("newest"),
       }),
       annotations: {
         readOnlyHint: true,
