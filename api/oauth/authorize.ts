@@ -102,7 +102,7 @@ function approvalPage(params: AuthorizationParams, error?: string): Response {
 <body style="font-family:system-ui,-apple-system,sans-serif;background:#f6f7f9;margin:0;padding:32px;color:#111827">
 <main style="max-width:520px;margin:48px auto;background:white;padding:28px;border-radius:14px;border:1px solid #e5e7eb">
 <h1 style="font-size:22px;margin-top:0">Gyuniverse Discord 연결 승인</h1>
-<p>Claude Chat / Cowork가 팀 Discord의 읽기 전용 도구에 접근하려고 합니다.</p>
+<p>연결하려는 AI 클라이언트가 팀 Discord의 읽기 전용 도구에 접근하려고 합니다.</p>
 <ul>
 <li>채널 목록 조회</li>
 <li>최근 메시지 조회</li>
@@ -124,7 +124,7 @@ ${hidden}
       headers: {
         "Content-Type": "text/html; charset=utf-8",
         "Cache-Control": "no-store",
-        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' https://claude.ai https://claude.com; base-uri 'none'; frame-ancestors 'none'",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' https://claude.ai https://claude.com https://chatgpt.com; base-uri 'none'; frame-ancestors 'none'",
       },
     },
   );

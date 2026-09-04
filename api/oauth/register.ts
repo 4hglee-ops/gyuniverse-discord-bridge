@@ -21,6 +21,14 @@ async function handle(request: Request): Promise<Response> {
     return Response.json({ error: "invalid_client_metadata" }, { status: 400 });
   }
 
+  console.log("OAuth DCR request", {
+    clientName: body.client_name,
+    redirectUris: body.redirect_uris,
+    tokenEndpointAuthMethod: body.token_endpoint_auth_method,
+    grantTypes: body.grant_types,
+    responseTypes: body.response_types,
+  });
+
   const redirectUris = Array.isArray(body.redirect_uris) ? body.redirect_uris : [];
   if (redirectUris.length === 0 || !redirectUris.every(isAllowedRedirectUri)) {
     return Response.json(
@@ -60,7 +68,7 @@ async function handle(request: Request): Promise<Response> {
     {
       client_id: clientId,
       client_id_issued_at: payload.iat,
-      client_name: payload.clientName ?? "Claude MCP client",
+      client_name: payload.clientName ?? "Gyuniverse MCP client",
       redirect_uris: redirectUris,
       token_endpoint_auth_method: "none",
       grant_types: requestedGrants,

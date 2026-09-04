@@ -143,11 +143,27 @@ export function normalizeScope(scope: string | null): string {
 export function isAllowedRedirectUri(value: string): boolean {
   try {
     const url = new URL(value);
+
+    if (url.username || url.password || url.hash) return false;
+
     if (
       url.protocol === "https:" &&
       (url.hostname === "claude.ai" || url.hostname === "claude.com") &&
       url.pathname === "/api/mcp/auth_callback"
     ) return true;
+
+    if (
+      url.protocol === "https:" &&
+      url.hostname === "chatgpt.com" &&
+      url.pathname === "/connector_platform_oauth_redirect"
+    ) return true;
+
+    if (
+      url.protocol === "https:" &&
+      url.hostname === "chatgpt.com" &&
+      /^\/connector\/oauth\/[^/]+$/.test(url.pathname)
+    ) return true;
+
     if (url.protocol === "http:" && (url.hostname === "localhost" || url.hostname === "127.0.0.1")) return true;
     return false;
   } catch {
