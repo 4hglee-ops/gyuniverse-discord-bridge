@@ -29,13 +29,14 @@ const searchWhen = [
 ] as const;
 
 export const TEAM_BRIEF_CONTRACT = {
-  version: "2.1",
+  version: "2.2",
   workflow: [
     "Decision Baseline의 confirmed 결정을 Current Decisions의 지속 기준으로 먼저 읽는다.",
     "Snapshot을 현재 팀 상태와 최근 변화의 1차 Evidence Pack으로 사용한다.",
     "Baseline과 Snapshot이 충돌하면 최신 메시지만으로 덮어쓰지 말고 필요한 Topic만 search_discord_messages로 보완한다.",
     "메시지를 Decision / Work / Blocker / Risk / Question / Proposal / State Gap으로 분류한다.",
     "근거가 부족한 항목은 확인 필요 또는 후보로 유지한다.",
+    "반복 비교가 필요하면 decisions/work/blockers/questions/proposals를 stable id로 정규화해 create_team_state_checkpoint로 저장할 수 있다.",
     "최종 답변 마지막에 Source freshness와 completeness를 짧게 표시한다.",
   ],
   sections: [
@@ -52,13 +53,7 @@ export const TEAM_BRIEF_CONTRACT = {
     "stateGaps",
     "evidenceFreshness",
   ],
-  decisionStatuses: [
-    "confirmed",
-    "proposed",
-    "superseded",
-    "rejected",
-    "unclear",
-  ],
+  decisionStatuses: ["confirmed", "proposed", "superseded", "rejected", "unclear"],
   taskStatuses: [
     "candidate",
     "assigned",
@@ -73,15 +68,18 @@ export const TEAM_BRIEF_CONTRACT = {
 } as const;
 
 export const DELTA_BRIEF_CONTRACT = {
-  version: "1.1",
+  version: "2.0",
   purpose:
-    "기준 시각 이후 새로 생기거나 상태가 바뀐 팀 맥락만 압축한다. 전체 Team Brief를 반복하지 않는다.",
+    "가능하면 이전 Team State Checkpoint와 현재 정규화 상태를 직접 비교해 실제 상태 전이를 보여준다. checkpoint가 없을 때만 시간창 Snapshot 기반 Delta를 사용한다.",
   workflow: [
-    "Delta window Snapshot을 우선 읽는다.",
-    "Decision Baseline은 변화 전 기준값으로 사용하되, Baseline 자체를 Delta의 새 결정으로 반복하지 않는다.",
-    "새 메시지가 기존 confirmed 결정을 변경/대체하는 것처럼 보이면 필요한 과거 Evidence를 검색한 뒤 changedDecisions로 분류한다.",
-    "변화가 없는 섹션은 생략하거나 없음으로 짧게 표시한다.",
+    "이전 checkpoint token이 있으면 현재 Snapshot/Baseline을 Evidence 규칙으로 해석해 같은 stable id 구조의 현재 상태를 만든다.",
+    "compare_team_state_checkpoint를 사용해 added / removed / status_changed / content_changed를 결정적으로 계산한다.",
+    "상태 전이를 New Decisions / Changed Decisions / Progress Changes / Resolved Blockers / Resolved Questions 등 사용자 친화적 섹션으로 번역한다.",
+    "이전 checkpoint가 없으면 Delta window Snapshot을 사용해 시간창 기반 변화를 보수적으로 판정한다.",
+    "Decision Baseline은 변화 전 기준값으로 사용하되 Baseline 자체를 새 결정으로 반복하지 않는다.",
+    "기존 confirmed 결정을 변경/대체하는 것처럼 보이면 필요한 과거 Evidence를 검색한다.",
     "완료/결정/담당 변화는 Evidence가 충분한 경우만 승격한다.",
+    "비교 후 반환된 currentCheckpointToken을 다음 비교용으로 보존한다.",
   ],
   sections: [
     "newDecisions",
@@ -119,13 +117,7 @@ export const DECISION_LEDGER_CONTRACT = {
     "conflictsOrUnclear",
     "evidenceFreshness",
   ],
-  decisionStatuses: [
-    "confirmed",
-    "proposed",
-    "superseded",
-    "rejected",
-    "unclear",
-  ],
+  decisionStatuses: ["confirmed", "proposed", "superseded", "rejected", "unclear"],
   evidenceRules,
   searchWhen,
 } as const;
@@ -151,7 +143,6 @@ export async function createTeamBriefContext(
   options: TeamBriefContextOptions,
 ): Promise<TeamBriefContext> {
   const snapshot = await createTeamContextSnapshot(options);
-
   return {
     mode: "team-brief",
     generatedAt: new Date().toISOString(),
@@ -175,7 +166,6 @@ export async function createDecisionLedgerContext(
   options: DecisionLedgerContextOptions,
 ): Promise<DecisionLedgerContext> {
   const snapshot = await createTeamContextSnapshot(options);
-
   return {
     mode: "decision-ledger",
     generatedAt: new Date().toISOString(),
@@ -211,23 +201,14 @@ export interface TeamDeltaContext {
 export async function createTeamDeltaContext(
   options: TeamDeltaContextOptions,
 ): Promise<TeamDeltaContext> {
-  const {
-    lookbackHours = 24,
-    since,
-    ...snapshotOptions
-  } = options;
+  const { lookbackHours = 24, since, ...snapshotOptions } = options;
 
-  if (
-    !Number.isInteger(lookbackHours) ||
-    lookbackHours < 1 ||
-    lookbackHours > 168
-  ) {
+  if (!Number.isInteger(lookbackHours) || lookbackHours < 1 || lookbackHours > 168) {
     throw new Error("lookbackHours must be an integer between 1 and 168.");
   }
 
-  const resolvedSince = since ?? new Date(
-    Date.now() - lookbackHours * 60 * 60 * 1000,
-  ).toISOString();
+  const resolvedSince =
+    since ?? new Date(Date.now() - lookbackHours * 60 * 60 * 1000).toISOString();
 
   if (Number.isNaN(Date.parse(resolvedSince))) {
     throw new Error(`since must be a valid date-time: ${resolvedSince}`);
