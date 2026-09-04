@@ -17,12 +17,31 @@ get_team_brief_context
 // GPT Actions: getTeamBriefContext
 ```
 
-필요한 과거 결정 근거만:
+이 결과에는 다음이 함께 들어간다.
 
 ```text
-search_discord_messages
-// GPT Actions: searchDiscordMessages
+Decision Baseline
+Current Discord Snapshot
+Team Brief Contract
 ```
+
+최근 Discord에 결정이 다시 언급되지 않아도 Baseline의 confirmed decision은 유지한다.
+
+### 현재 결정 / 결정 변경 여부
+
+우선:
+
+```text
+get_decision_ledger_context
+// GPT Actions: getDecisionLedgerContext
+```
+
+다음 질문에 사용한다.
+
+- 지금 확정된 결정 뭐야?
+- DB 관련 결정은 아직 열린 상태야?
+- 기존 결정에서 바뀐 거 있어?
+- Jira→Branch→PR 흐름은 현재도 유효해?
 
 ### 무엇이 바뀌었는지
 
@@ -67,6 +86,8 @@ search_discord_messages
 - 한 사람의 아이디어 ≠ 팀 결정
 - 최신 메시지 ≠ 자동으로 최신 confirmed decision
 - Discord username ≠ 실제 사람 이름 (검증된 Identity Map 필요)
+- 최근 Snapshot에서 언급되지 않음 ≠ 기존 confirmed decision 취소
+- 새 메시지 1건 ≠ 기존 confirmed decision superseded
 
 ### Evidence 수준
 
@@ -88,9 +109,50 @@ Inferred Evidence만으로 사람/완료/결정을 확정하지 않는다.
 
 ---
 
-## 3. Team Brief v2
+## 3. Decision Baseline
 
-사용자가 현재 팀 상태, 브리핑, 전체 진행 상황을 요청하면 `get_team_brief_context` 결과의 `contract.sections`를 따른다.
+Decision Baseline은 이미 검증된 confirmed decision의 지속 기준이다.
+
+```text
+confirmed
+→ 명시적 superseded/rejected 근거 전까지 유지
+```
+
+현재 코드 Source of Truth:
+
+```text
+src/context/decision-baseline.ts
+```
+
+상세:
+
+```text
+docs/DECISION_BASELINE.md
+```
+
+Baseline에는 `currentDecisions`와 `openDecisions`가 분리되어 있다.
+
+### 중요
+
+- Baseline을 새 Discord 메시지보다 무조건 우선하는 절대 진실로 보지 않는다.
+- Snapshot에서 충돌/변경 신호가 있으면 필요한 Topic만 과거 Search로 보완한다.
+- 충분한 근거가 있을 때만 `superseded / rejected` 후보로 변경한다.
+- 새로운 confirmed decision 자동 등록은 하지 않는다.
+
+---
+
+## 4. Team Brief v2.1
+
+사용자가 현재 팀 상태를 요청하면 `get_team_brief_context`를 사용한다.
+
+판정 순서:
+
+```text
+Decision Baseline
+→ Current Discord Snapshot
+→ 충돌/부족한 Topic만 Search
+→ Team Brief
+```
 
 기본 출력 순서:
 
@@ -107,6 +169,12 @@ Inferred Evidence만으로 사람/완료/결정을 확정하지 않는다.
 11. State Gaps
 12. Evidence / Freshness
 
+### Current Decisions
+
+- Baseline confirmed 항목을 현재 기준으로 시작한다.
+- 최근 Snapshot에서 다시 언급되지 않았다는 이유로 제거하지 않는다.
+- 새로운 변경 Evidence가 있으면 기존 결정과 비교한다.
+
 ### 출력 원칙
 
 - 중요하지 않은 빈 섹션은 생략 가능
@@ -117,31 +185,23 @@ Inferred Evidence만으로 사람/완료/결정을 확정하지 않는다.
 - 담당자가 명시되지 않았으면 임의 배정 금지
 - 결정 상태는 `confirmed / proposed / superseded / rejected / unclear`
 
-### Search 보완 조건
-
-Snapshot만으로 충분하면 Search하지 않는다.
-
-다음 경우만 과거 검색을 보완한다.
-
-- 결정 이유가 필요함
-- 변경 이력이 필요함
-- 상충 메시지가 존재함
-- 완료/담당 Evidence가 부족함
-- 사용자가 과거 전체를 요구함
-
 ---
 
-## 4. Delta Brief v1
+## 5. Delta Brief v1.1
 
 Delta Brief는 전체 현황을 다시 쓰지 않는다.
 
-기본 질문:
+기본 window는 24시간이며 사용자가 기준시각/기간을 지정하면 그것을 사용한다.
+
+Baseline은 **변화 전 reference**로만 사용한다.
 
 ```text
-어제 이후 뭐 바뀌었어?
+Decision Baseline
+      vs
+Delta Snapshot
 ```
 
-기본 window는 24시간이며 사용자가 기준시각/기간을 지정하면 그것을 사용한다.
+Baseline의 기존 confirmed 항목 자체를 새 결정으로 반복하지 않는다.
 
 출력 순서:
 
@@ -157,27 +217,40 @@ Delta Brief는 전체 현황을 다시 쓰지 않는다.
 10. New Proposals
 11. Evidence / Freshness
 
-변화가 없는 섹션은 생략하거나 짧게 `없음`으로 표시한다.
-
-### 중요
-
-Delta window 안에 "해결됨", "끝남", "기존 결정 변경" 같은 문장이 있어도 이전 상태가 무엇이었는지 필요한 경우 Search로 이전 Evidence를 확인한다.
-
-예:
-
-```text
-현재: "PostgreSQL로 하기로 했어"
-```
-
-만 보고 `changed decision`으로 확정하지 않는다.
-
-이전 결정이 MySQL이었는지, 단순 후보였는지 Search로 확인할 수 있다.
+기존 confirmed decision이 변경된 것처럼 보이면 필요한 과거 Evidence를 확인한 후 Changed Decisions로 올린다.
 
 ---
 
-## 5. Decision Ledger
+## 6. Decision Ledger
 
-Decision 요청은 다음 상태를 사용한다.
+Decision 요청은:
+
+```text
+get_decision_ledger_context
+```
+
+를 우선 사용한다.
+
+반환 구조:
+
+```text
+baseline.currentDecisions
+baseline.openDecisions
+snapshot
+contract
+```
+
+권장 출력:
+
+```text
+Current Decisions
+Decision Changes
+Open Decisions
+Conflicts / Unclear
+Evidence / Freshness
+```
+
+Decision 상태:
 
 ```text
 confirmed
@@ -185,22 +258,6 @@ proposed
 superseded
 rejected
 unclear
-```
-
-권장 필드:
-
-```text
-Topic
-Current Decision
-Status
-Effective Since
-People
-Primary Evidence
-Secondary Evidence
-Previous Decision
-Change History
-Reason
-History Completeness
 ```
 
 `confirmed decision`과 `implementation done`은 별개다.
@@ -211,17 +268,30 @@ History Completeness
 Jira → Branch → PR → Review → Merge → Done
 ```
 
-이라는 운영 규칙이 confirmed여도 실제 E2E 검증 작업은 미완료일 수 있다.
+이라는 운영 규칙이 confirmed여도 실제 E2E 검증은 미완료일 수 있다.
 
 ---
 
-## 6. Completeness / Freshness
+## 7. Search 보완 조건
+
+Snapshot/Baseline만으로 충분하면 Search하지 않는다.
+
+다음 경우만 보완한다.
+
+- 결정 이유가 필요함
+- 변경 이력이 필요함
+- Baseline과 최신 메시지가 충돌함
+- 기존 결정을 superseded/rejected 할 가능성이 있음
+- 완료/담당 Evidence가 부족함
+- 사용자가 과거 전체를 요구함
+
+---
+
+## 8. Completeness / Freshness
 
 항상 Snapshot metadata를 해석한다.
 
 ### historyComplete = false
-
-아래처럼 표현한다.
 
 ```text
 최근 조회 범위 기준이며, 과거 전체 기록을 모두 확인한 것은 아닙니다.
@@ -235,11 +305,14 @@ Jira → Branch → PR → Review → Merge → Done
 
 ---
 
-## 7. Tool 선택 요약
+## 9. Tool 선택 요약
 
 ```text
 현재 팀 상황
 → get_team_brief_context
+
+현재 결정 / 결정 변경
+→ get_decision_ledger_context
 
 어제/회의 이후 변화
 → get_team_delta_context
@@ -259,11 +332,11 @@ Jira → Branch → PR → Review → Merge → Done
 
 ---
 
-## 8. Write 원칙
+## 10. Write 원칙
 
 이 Skill은 현재 Discord read-only다.
 
 - Discord write/delete 없음
-- Jira/Notion/GitHub 변경은 별도 연결에서 실행 가능하더라도 먼저 후보를 제시
+- Jira/Notion/GitHub 변경은 먼저 후보를 제시
 - 실제 write는 사용자의 명시적인 실행 요청 후 수행
 - delete/bulk destructive 변경은 별도 강한 승인 필요

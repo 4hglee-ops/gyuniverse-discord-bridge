@@ -35,9 +35,9 @@ export function GET(request: Request): Response {
     openapi: "3.1.0",
     info: {
       title: "Gyuniverse Discord GPT Actions",
-      version: "1.3.1",
+      version: "1.4.0",
       description:
-        "Read-only Discord team-context Actions for snapshots, team briefs, delta briefs, focused reads, and historical evidence search.",
+        "Read-only Discord team-context Actions with versioned Decision Baseline, Team Brief, Delta Brief, snapshots, and historical evidence search.",
     },
     servers: [{ url: origin }],
     security: [{ bearerAuth: [] }],
@@ -46,8 +46,7 @@ export function GET(request: Request): Response {
         get: {
           operationId: "listDiscordChannels",
           summary: "List accessible Discord text channels",
-          description:
-            "Lists text channels that the configured Discord bot can access.",
+          description: "Lists text channels that the configured Discord bot can access.",
           responses: {
             "200": {
               description: "Accessible Discord channels",
@@ -76,7 +75,7 @@ export function GET(request: Request): Response {
           operationId: "getRecentDiscordMessages",
           summary: "Read recent messages from one Discord channel",
           description:
-            "Use for a focused single-channel read. For team-wide briefing, prefer getTeamBriefContext.",
+            "Use for focused single-channel reading. For team-wide status, prefer getTeamBriefContext.",
           parameters: [
             {
               name: "channelId",
@@ -149,9 +148,9 @@ export function GET(request: Request): Response {
       "/api/gpt/v1/team-brief-context": {
         get: {
           operationId: "getTeamBriefContext",
-          summary: "Get current Team Brief context and contract",
+          summary: "Get current Team Brief context with decision baseline",
           description:
-            "Primary action for current team status, progress, blockers, risks, questions, proposals, and decisions needed. Returns a Snapshot plus the Team Brief v2 contract. Search history only when the Snapshot lacks required evidence.",
+            "Primary action for current team status. Returns persistent confirmed decisions, current Discord Snapshot, and Team Brief v2.1 rules.",
           parameters: [
             channelIdsParameter,
             sinceParameter,
@@ -171,12 +170,37 @@ export function GET(request: Request): Response {
           },
         },
       },
+      "/api/gpt/v1/decision-ledger-context": {
+        get: {
+          operationId: "getDecisionLedgerContext",
+          summary: "Get current Decision Ledger context",
+          description:
+            "Use for current decisions, open decision topics, changed decisions, or whether a prior decision was superseded. Returns baseline, Snapshot, and ledger rules.",
+          parameters: [
+            channelIdsParameter,
+            sinceParameter,
+            perChannelLimitParameter,
+          ],
+          responses: {
+            "200": {
+              description: "Decision Ledger Context",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/DecisionLedgerContext" },
+                },
+              },
+            },
+            "400": { $ref: "#/components/responses/BadRequest" },
+            "401": { $ref: "#/components/responses/Unauthorized" },
+          },
+        },
+      },
       "/api/gpt/v1/team-delta-context": {
         get: {
           operationId: "getTeamDeltaContext",
           summary: "Get Delta Brief context for what changed",
           description:
-            "Primary action for changes since yesterday, a meeting, today, or a specified time. Returns only that time window plus the Delta Brief v1 contract instead of repeating the full Team Brief.",
+            "Primary action for changes since yesterday, a meeting, today, or a specified time. Uses the Decision Baseline as the prior decision reference.",
           parameters: [
             channelIdsParameter,
             sinceParameter,
@@ -185,7 +209,7 @@ export function GET(request: Request): Response {
               in: "query",
               required: false,
               description:
-                "Used only when since is omitted. Defaults to the previous 24 hours, maximum 168 hours.",
+                "Used only when since is omitted. Defaults to 24 hours, maximum 168 hours.",
               schema: {
                 type: "integer",
                 minimum: 1,
@@ -214,58 +238,24 @@ export function GET(request: Request): Response {
           operationId: "searchDiscordMessages",
           summary: "Search Discord history for supporting evidence",
           description:
-            "Use when older decision history, reasons, conflicts, author-specific evidence, or broader historical lookup is needed. The response reports when only recent fallback history was available.",
+            "Use for older decision history, reasons, conflicts, author-specific evidence, or broader historical lookup. Reports recent fallback when history is incomplete.",
           parameters: [
-            {
-              name: "query",
-              in: "query",
-              required: false,
-              schema: { type: "string", maxLength: 1024 },
-            },
-            {
-              name: "channelId",
-              in: "query",
-              required: false,
-              schema: { type: "string" },
-            },
-            {
-              name: "authorId",
-              in: "query",
-              required: false,
-              schema: { type: "string" },
-            },
-            {
-              name: "after",
-              in: "query",
-              required: false,
-              schema: { type: "string", format: "date-time" },
-            },
-            {
-              name: "before",
-              in: "query",
-              required: false,
-              schema: { type: "string", format: "date-time" },
-            },
+            { name: "query", in: "query", required: false, schema: { type: "string", maxLength: 1024 } },
+            { name: "channelId", in: "query", required: false, schema: { type: "string" } },
+            { name: "authorId", in: "query", required: false, schema: { type: "string" } },
+            { name: "after", in: "query", required: false, schema: { type: "string", format: "date-time" } },
+            { name: "before", in: "query", required: false, schema: { type: "string", format: "date-time" } },
             {
               name: "limit",
               in: "query",
               required: false,
-              schema: {
-                type: "integer",
-                minimum: 1,
-                maximum: 100,
-                default: 25,
-              },
+              schema: { type: "integer", minimum: 1, maximum: 100, default: 25 },
             },
             {
               name: "sort",
               in: "query",
               required: false,
-              schema: {
-                type: "string",
-                enum: ["newest", "oldest", "relevance"],
-                default: "newest",
-              },
+              schema: { type: "string", enum: ["newest", "oldest", "relevance"], default: "newest" },
             },
           ],
           responses: {
@@ -321,19 +311,7 @@ export function GET(request: Request): Response {
         },
         BridgeMessage: {
           type: "object",
-          required: [
-            "id",
-            "source",
-            "serverId",
-            "serverName",
-            "channelId",
-            "channelName",
-            "authorId",
-            "authorName",
-            "content",
-            "timestamp",
-            "attachments",
-          ],
+          required: ["id", "source", "serverId", "serverName", "channelId", "channelName", "authorId", "authorName", "content", "timestamp", "attachments"],
           properties: {
             id: { type: "string" },
             source: { type: "string", enum: ["discord"] },
@@ -345,23 +323,12 @@ export function GET(request: Request): Response {
             authorName: { type: "string" },
             content: { type: "string" },
             timestamp: { type: "string", format: "date-time" },
-            attachments: {
-              type: "array",
-              items: { $ref: "#/components/schemas/BridgeAttachment" },
-            },
+            attachments: { type: "array", items: { $ref: "#/components/schemas/BridgeAttachment" } },
           },
         },
         TeamContextChannelSnapshot: {
           type: "object",
-          required: [
-            "channelId",
-            "channelName",
-            "fetchedMessages",
-            "returnedMessages",
-            "oldestFetchedAt",
-            "newestFetchedAt",
-            "windowComplete",
-          ],
+          required: ["channelId", "channelName", "fetchedMessages", "returnedMessages", "oldestFetchedAt", "newestFetchedAt", "windowComplete"],
           properties: {
             channelId: { type: "string" },
             channelName: { type: "string" },
@@ -374,28 +341,14 @@ export function GET(request: Request): Response {
         },
         TeamContextSnapshot: {
           type: "object",
-          required: [
-            "snapshotAt",
-            "source",
-            "server",
-            "scope",
-            "freshness",
-            "completeness",
-            "channels",
-            "authors",
-            "messageCount",
-            "messages",
-          ],
+          required: ["snapshotAt", "source", "server", "scope", "freshness", "completeness", "channels", "authors", "messageCount", "messages"],
           properties: {
             snapshotAt: { type: "string", format: "date-time" },
             source: { type: "string", enum: ["discord"] },
             server: {
               type: "object",
               required: ["id", "name"],
-              properties: {
-                id: { type: "string" },
-                name: { type: "string" },
-              },
+              properties: { id: { type: "string" }, name: { type: "string" } },
             },
             scope: {
               type: "object",
@@ -409,89 +362,124 @@ export function GET(request: Request): Response {
             freshness: {
               type: "object",
               required: ["newestMessageAt"],
-              properties: {
-                newestMessageAt: { type: ["string", "null"] },
-              },
+              properties: { newestMessageAt: { type: ["string", "null"] } },
             },
             completeness: {
               type: "object",
               required: ["historyComplete", "note"],
-              properties: {
-                historyComplete: { type: "boolean" },
-                note: { type: "string" },
-              },
+              properties: { historyComplete: { type: "boolean" }, note: { type: "string" } },
             },
-            channels: {
-              type: "array",
-              items: { $ref: "#/components/schemas/TeamContextChannelSnapshot" },
-            },
+            channels: { type: "array", items: { $ref: "#/components/schemas/TeamContextChannelSnapshot" } },
             authors: {
               type: "array",
               items: {
                 type: "object",
                 required: ["authorId", "authorName"],
-                properties: {
-                  authorId: { type: "string" },
-                  authorName: { type: "string" },
-                },
+                properties: { authorId: { type: "string" }, authorName: { type: "string" } },
               },
             },
             messageCount: { type: "integer", minimum: 0 },
-            messages: {
-              type: "array",
-              items: { $ref: "#/components/schemas/BridgeMessage" },
+            messages: { type: "array", items: { $ref: "#/components/schemas/BridgeMessage" } },
+          },
+        },
+        DecisionEvidenceRef: {
+          type: "object",
+          required: ["source", "label"],
+          properties: {
+            source: { type: "string", enum: ["notion", "discord", "jira", "github", "docs"] },
+            label: { type: "string" },
+            note: { type: "string" },
+          },
+        },
+        CurrentDecisionBaselineItem: {
+          type: "object",
+          required: ["id", "topic", "status", "decision", "effectiveSince", "evidenceStrength", "evidence"],
+          properties: {
+            id: { type: "string" },
+            topic: { type: "string" },
+            status: { type: "string", enum: ["confirmed"] },
+            decision: { type: "string" },
+            effectiveSince: { type: "string" },
+            scope: { type: "string" },
+            caveat: { type: "string" },
+            evidenceStrength: { type: "string", enum: ["strong", "medium"] },
+            evidence: { type: "array", items: { $ref: "#/components/schemas/DecisionEvidenceRef" } },
+          },
+        },
+        OpenDecisionBaselineItem: {
+          type: "object",
+          required: ["id", "topic", "status", "reasonOpen"],
+          properties: {
+            id: { type: "string" },
+            topic: { type: "string" },
+            status: { type: "string", enum: ["proposed", "unclear"] },
+            candidates: { type: "array", items: { type: "string" } },
+            currentDirection: { type: "string" },
+            reasonOpen: { type: "string" },
+          },
+        },
+        DecisionBaseline: {
+          type: "object",
+          required: ["version", "updatedAt", "sourceOfTruth", "policy", "currentDecisions", "openDecisions"],
+          properties: {
+            version: { type: "string" },
+            updatedAt: { type: "string", format: "date-time" },
+            sourceOfTruth: { type: "string" },
+            policy: {
+              type: "object",
+              required: ["preserveUntilSuperseded", "recentSilenceDoesNotRemoveDecision", "newerMessageAloneDoesNotSupersede"],
+              properties: {
+                preserveUntilSuperseded: { type: "boolean" },
+                recentSilenceDoesNotRemoveDecision: { type: "boolean" },
+                newerMessageAloneDoesNotSupersede: { type: "boolean" },
+              },
             },
+            currentDecisions: { type: "array", items: { $ref: "#/components/schemas/CurrentDecisionBaselineItem" } },
+            openDecisions: { type: "array", items: { $ref: "#/components/schemas/OpenDecisionBaselineItem" } },
           },
         },
         WorkflowContract: {
           type: "object",
-          description:
-            "Shared workflow, output sections, evidence rules, and optional decision/task status vocabularies.",
           properties: {
             version: { type: "string" },
             purpose: { type: "string" },
-            workflow: {
-              type: "array",
-              items: { type: "string" },
-            },
-            sections: {
-              type: "array",
-              items: { type: "string" },
-            },
-            decisionStatuses: {
-              type: "array",
-              items: { type: "string" },
-            },
-            taskStatuses: {
-              type: "array",
-              items: { type: "string" },
-            },
-            evidenceRules: {
-              type: "array",
-              items: { type: "string" },
-            },
-            searchWhen: {
-              type: "array",
-              items: { type: "string" },
-            },
+            workflow: { type: "array", items: { type: "string" } },
+            sections: { type: "array", items: { type: "string" } },
+            decisionStatuses: { type: "array", items: { type: "string" } },
+            taskStatuses: { type: "array", items: { type: "string" } },
+            evidenceRules: { type: "array", items: { type: "string" } },
+            searchWhen: { type: "array", items: { type: "string" } },
           },
         },
         TeamBriefContext: {
           type: "object",
-          required: ["mode", "generatedAt", "snapshot", "contract"],
+          required: ["mode", "generatedAt", "decisionBaseline", "snapshot", "contract"],
           properties: {
             mode: { type: "string", enum: ["team-brief"] },
             generatedAt: { type: "string", format: "date-time" },
+            decisionBaseline: { $ref: "#/components/schemas/DecisionBaseline" },
+            snapshot: { $ref: "#/components/schemas/TeamContextSnapshot" },
+            contract: { $ref: "#/components/schemas/WorkflowContract" },
+          },
+        },
+        DecisionLedgerContext: {
+          type: "object",
+          required: ["mode", "generatedAt", "baseline", "snapshot", "contract"],
+          properties: {
+            mode: { type: "string", enum: ["decision-ledger"] },
+            generatedAt: { type: "string", format: "date-time" },
+            baseline: { $ref: "#/components/schemas/DecisionBaseline" },
             snapshot: { $ref: "#/components/schemas/TeamContextSnapshot" },
             contract: { $ref: "#/components/schemas/WorkflowContract" },
           },
         },
         TeamDeltaContext: {
           type: "object",
-          required: ["mode", "generatedAt", "window", "snapshot", "contract"],
+          required: ["mode", "generatedAt", "decisionBaseline", "window", "snapshot", "contract"],
           properties: {
             mode: { type: "string", enum: ["delta-brief"] },
             generatedAt: { type: "string", format: "date-time" },
+            decisionBaseline: { $ref: "#/components/schemas/DecisionBaseline" },
             window: {
               type: "object",
               required: ["since", "sinceDefaulted", "lookbackHours"],
@@ -507,61 +495,34 @@ export function GET(request: Request): Response {
         },
         SearchResult: {
           type: "object",
-          required: [
-            "totalResults",
-            "returnedResults",
-            "searchMode",
-            "historyComplete",
-            "scannedMessages",
-            "messages",
-          ],
+          required: ["totalResults", "returnedResults", "searchMode", "historyComplete", "scannedMessages", "messages"],
           properties: {
             totalResults: { type: "integer", minimum: 0 },
             returnedResults: { type: "integer", minimum: 0 },
-            searchMode: {
-              type: "string",
-              enum: ["discord-index", "recent-fallback"],
-            },
+            searchMode: { type: "string", enum: ["discord-index", "recent-fallback"] },
             historyComplete: { type: "boolean" },
             scannedMessages: { type: ["integer", "null"] },
-            messages: {
-              type: "array",
-              items: { $ref: "#/components/schemas/BridgeMessage" },
-            },
+            messages: { type: "array", items: { $ref: "#/components/schemas/BridgeMessage" } },
           },
         },
         Error: {
           type: "object",
           required: ["error"],
-          properties: {
-            error: { type: "string" },
-          },
+          properties: { error: { type: "string" } },
         },
       },
       responses: {
         BadRequest: {
           description: "Bad request",
-          content: {
-            "application/json": {
-              schema: { $ref: "#/components/schemas/Error" },
-            },
-          },
+          content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
         },
         Unauthorized: {
           description: "Bearer API key is missing or invalid",
-          content: {
-            "application/json": {
-              schema: { $ref: "#/components/schemas/Error" },
-            },
-          },
+          content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
         },
         NotFound: {
           description: "Discord channel not found or inaccessible",
-          content: {
-            "application/json": {
-              schema: { $ref: "#/components/schemas/Error" },
-            },
-          },
+          content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
         },
       },
     },

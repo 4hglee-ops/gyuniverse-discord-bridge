@@ -8,6 +8,7 @@ import { searchGuildMessagesRest } from "../discord/rest-search.js";
 import { toBridgeMessageRest } from "../adapters/discord-rest-message-adapter.js";
 import { createTeamContextSnapshot } from "../context/team-context-snapshot.js";
 import {
+  createDecisionLedgerContext,
   createTeamBriefContext,
   createTeamDeltaContext,
 } from "../context/team-context-workflows.js";
@@ -29,7 +30,7 @@ export function buildRestMcpServer(
 
   const server = new McpServer({
     name: "gyuniverse-discord-bridge",
-    version: "0.4.0",
+    version: "0.5.0",
   });
 
   server.registerTool(
@@ -153,13 +154,10 @@ export function buildRestMcpServer(
     "get_team_brief_context",
     {
       description:
-        "현재 팀 상태 브리핑을 만들기 위한 Snapshot + 공통 Team Brief v2 판정/출력 Contract를 반환합니다. 이 결과를 읽고 필요한 과거 결정만 search_discord_messages로 보완한 뒤 contract.sections 순서로 브리핑하세요.",
+        "현재 팀 상태 브리핑을 만들기 위한 Decision Baseline + Snapshot + Team Brief v2.1 Contract를 반환합니다. 최근 대화에 결정이 다시 나오지 않아도 baseline confirmed 결정은 유지합니다.",
       inputSchema: z.object({
         channelIds: z.array(z.string().min(1)).max(20).optional(),
-        since: z
-          .string()
-          .optional()
-          .describe("선택적 최근 범위 시작 시각. 생략하면 최근 메시지 bounded snapshot"),
+        since: z.string().optional(),
         perChannelLimit: z.number().int().min(1).max(100).default(50),
       }),
       annotations: {
@@ -191,10 +189,48 @@ export function buildRestMcpServer(
   );
 
   server.registerTool(
+    "get_decision_ledger_context",
+    {
+      description:
+        "현재 confirmed Decision Baseline과 열린 결정 후보, 최신 Discord Snapshot, Decision Ledger 판정 Contract를 함께 반환합니다. 기존 결정의 유지/변경/대체 여부를 검토할 때 사용합니다.",
+      inputSchema: z.object({
+        channelIds: z.array(z.string().min(1)).max(20).optional(),
+        since: z.string().optional(),
+        perChannelLimit: z.number().int().min(1).max(100).default(50),
+      }),
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async ({ channelIds, since, perChannelLimit }) => {
+      const result = await createDecisionLedgerContext({
+        rest,
+        guildId,
+        guildName,
+        channelIds,
+        since,
+        perChannelLimit,
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerTool(
     "get_team_delta_context",
     {
       description:
-        "기준 시각 이후 무엇이 바뀌었는지 Delta Brief를 만들기 위한 Snapshot + Delta Brief v1 Contract를 반환합니다. since를 생략하면 기본 24시간을 사용합니다.",
+        "기준 시각 이후 무엇이 바뀌었는지 Delta Brief를 만들기 위한 Decision Baseline + Snapshot + Delta Brief v1.1 Contract를 반환합니다. since를 생략하면 기본 24시간을 사용합니다.",
       inputSchema: z.object({
         channelIds: z.array(z.string().min(1)).max(20).optional(),
         since: z.string().optional(),
