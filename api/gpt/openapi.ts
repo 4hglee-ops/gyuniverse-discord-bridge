@@ -35,9 +35,9 @@ export function GET(request: Request): Response {
     openapi: "3.1.0",
     info: {
       title: "Gyuniverse Discord GPT Actions",
-      version: "1.3.0",
+      version: "1.3.1",
       description:
-        "Read-only Discord team-context Actions. Snapshot is the common Evidence Pack; Team Brief and Delta Brief context operations add shared interpretation/output contracts for consistent ChatGPT and Claude workflows.",
+        "Read-only Discord team-context Actions for snapshots, team briefs, delta briefs, focused reads, and historical evidence search.",
     },
     servers: [{ url: origin }],
     security: [{ bearerAuth: [] }],
@@ -126,7 +126,7 @@ export function GET(request: Request): Response {
           operationId: "getTeamContextSnapshot",
           summary: "Build the shared Discord Evidence Pack",
           description:
-            "Collects recent messages across channels with freshness/completeness metadata. Use when raw shared context is needed without a specific briefing workflow.",
+            "Collects recent messages across channels with freshness and completeness metadata without interpreting team state.",
           parameters: [
             channelIdsParameter,
             sinceParameter,
@@ -151,7 +151,7 @@ export function GET(request: Request): Response {
           operationId: "getTeamBriefContext",
           summary: "Get current Team Brief context and contract",
           description:
-            "PRIMARY action for requests such as current team status, team briefing, what is in progress, blockers, risks, unresolved questions, proposals, or decisions needed next. Returns the Snapshot plus the shared Team Brief v2 workflow, evidence rules, statuses, and ordered output sections. Read the returned contract and only call searchDiscordMessages when past evidence is required.",
+            "Primary action for current team status, progress, blockers, risks, questions, proposals, and decisions needed. Returns a Snapshot plus the Team Brief v2 contract. Search history only when the Snapshot lacks required evidence.",
           parameters: [
             channelIdsParameter,
             sinceParameter,
@@ -176,7 +176,7 @@ export function GET(request: Request): Response {
           operationId: "getTeamDeltaContext",
           summary: "Get Delta Brief context for what changed",
           description:
-            "PRIMARY action for requests such as what changed since yesterday, since the meeting, today, or since a specified time. Returns only the requested time-window Snapshot plus the shared Delta Brief v1 contract. Do not repeat the full Team Brief unless the user asks for it.",
+            "Primary action for changes since yesterday, a meeting, today, or a specified time. Returns only that time window plus the Delta Brief v1 contract instead of repeating the full Team Brief.",
           parameters: [
             channelIdsParameter,
             sinceParameter,
@@ -214,7 +214,7 @@ export function GET(request: Request): Response {
           operationId: "searchDiscordMessages",
           summary: "Search Discord history for supporting evidence",
           description:
-            "Use after Snapshot/Brief/Delta context when older decision history, reasons, conflicts, author-specific evidence, or a broader historical lookup is needed. If Discord historical search is unavailable, the response reports recent-fallback and incomplete history.",
+            "Use when older decision history, reasons, conflicts, author-specific evidence, or broader historical lookup is needed. The response reports when only recent fallback history was available.",
           parameters: [
             {
               name: "query",
@@ -445,9 +445,36 @@ export function GET(request: Request): Response {
         },
         WorkflowContract: {
           type: "object",
-          additionalProperties: true,
           description:
-            "Machine-readable workflow/output/evidence rules. The assistant should follow these instructions when producing the final brief.",
+            "Shared workflow, output sections, evidence rules, and optional decision/task status vocabularies.",
+          properties: {
+            version: { type: "string" },
+            purpose: { type: "string" },
+            workflow: {
+              type: "array",
+              items: { type: "string" },
+            },
+            sections: {
+              type: "array",
+              items: { type: "string" },
+            },
+            decisionStatuses: {
+              type: "array",
+              items: { type: "string" },
+            },
+            taskStatuses: {
+              type: "array",
+              items: { type: "string" },
+            },
+            evidenceRules: {
+              type: "array",
+              items: { type: "string" },
+            },
+            searchWhen: {
+              type: "array",
+              items: { type: "string" },
+            },
+          },
         },
         TeamBriefContext: {
           type: "object",
@@ -467,7 +494,12 @@ export function GET(request: Request): Response {
             generatedAt: { type: "string", format: "date-time" },
             window: {
               type: "object",
-              additionalProperties: true,
+              required: ["since", "sinceDefaulted", "lookbackHours"],
+              properties: {
+                since: { type: "string", format: "date-time" },
+                sinceDefaulted: { type: "boolean" },
+                lookbackHours: { type: ["integer", "null"] },
+              },
             },
             snapshot: { $ref: "#/components/schemas/TeamContextSnapshot" },
             contract: { $ref: "#/components/schemas/WorkflowContract" },
