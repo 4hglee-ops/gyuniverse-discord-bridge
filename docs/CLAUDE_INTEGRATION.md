@@ -28,15 +28,18 @@ Claude Code는 원격 HTTP MCP 서버와 정적 Authorization header를 지원�
 
 ### 개인 / 로컬 범위 연결
 
+현재 Claude Code CLI 문법에서는 remote HTTP 서버의 `name`과 `url`을 먼저 적고, `--header`를 URL 뒤에 둔다.
+
 PowerShell 예시:
 
 ```powershell
 $env:GYUNIVERSE_MCP_TOKEN = "<팀에서 전달받은 MCP shared secret>"
 
-claude mcp add --transport http `
-  --header "Authorization: Bearer $env:GYUNIVERSE_MCP_TOKEN" `
+claude mcp add `
+  --transport http `
   gyuniverse-discord `
-  https://gyuniverse-discord-bridge.vercel.app/mcp
+  https://gyuniverse-discord-bridge.vercel.app/mcp `
+  --header "Authorization: Bearer $env:GYUNIVERSE_MCP_TOKEN"
 ```
 
 Bash 예시:
@@ -45,9 +48,9 @@ Bash 예시:
 export GYUNIVERSE_MCP_TOKEN="<team shared secret>"
 
 claude mcp add --transport http \
-  --header "Authorization: Bearer $GYUNIVERSE_MCP_TOKEN" \
   gyuniverse-discord \
-  https://gyuniverse-discord-bridge.vercel.app/mcp
+  https://gyuniverse-discord-bridge.vercel.app/mcp \
+  --header "Authorization: Bearer $GYUNIVERSE_MCP_TOKEN"
 ```
 
 확인:
@@ -154,7 +157,7 @@ Anthropic의 Remote Custom Connector는 Claude와 Claude Desktop에서 사용할
 따라서 현재 판정:
 
 ```text
-Claude Code                  READY
+Claude Code                  CONNECTED / TOOL CALL TEST IN PROGRESS
 Claude / Claude Desktop      AUTH UPGRADE REQUIRED
 ```
 
@@ -225,11 +228,11 @@ OAuth
 
 ### Claude Code
 
-- [ ] `GYUNIVERSE_MCP_TOKEN` 환경변수 설정
-- [ ] Remote MCP 추가
-- [ ] `claude mcp list`에 표시
-- [ ] `/mcp`에서 connected 확인
-- [ ] 3개 Discord Tool 노출 확인
+- [x] `GYUNIVERSE_MCP_TOKEN` 환경변수 설정
+- [x] Remote MCP 추가
+- [x] `claude mcp list`에 표시
+- [x] `/mcp`에서 connected 확인
+- [x] 3개 Discord Tool 노출 확인
 - [ ] `list_discord_channels` 실행
 - [ ] 최근 메시지 조회
 - [ ] 과거 `Jira` 검색
@@ -243,20 +246,32 @@ OAuth
 - [ ] 도구별 enable/disable 검증
 - [ ] 팀 배포 방식 검토
 
-## 9. 현재 상태
+## 9. 2026-09-04 실제 연결 검증
+
+- Claude Code `2.1.260` 설치 완료
+- 프로젝트 local MCP 등록 성공
+- `claude mcp list`에서 `√Connected` 확인
+- `/mcp` 화면에서 3개 read-only Tool discovery 확인
+- 실제 Discord Tool 호출 smoke test 진행 중
+
+## 10. 현재 상태
 
 - Remote MCP 배포: DONE
 - Claude Code 연결 설계: DONE
-- Claude Code 실제 팀원 연결: READY / 실사용 검증 필요
+- Claude Code 인증/연결: DONE
+- Claude Code Tool discovery: DONE
+- Claude Code Discord Tool smoke test: IN PROGRESS
 - Project-scope `.mcp.json` 설계: DONE
 - Claude.ai Remote Connector: WAITING — OAuth 필요
 - Claude Desktop Remote Connector: WAITING — OAuth 필요
 - OAuth: BACKLOG
 
-## 10. 다음 순서
+## 11. 다음 순서
 
-1. 한 명의 Claude Code에서 현재 Remote MCP 연결 실사용 검증
-2. Team Brief / history search 결과를 ChatGPT 결과와 비교
-3. 팀원 배포 시 `.mcp.json` + 환경변수 방식 적용
-4. 실제 사용 가치가 확인되면 OAuth 설계 착수
-5. OAuth 이후 Claude.ai / Claude Desktop Custom Connector 연결
+1. `list_discord_channels` 실행
+2. 최근 메시지 조회
+3. 과거 `Jira` 검색
+4. Team Brief 생성
+5. ChatGPT 결과와 비교
+6. 팀원 배포 방식 확정
+7. 실제 사용 가치가 확인되면 OAuth 설계 착수
