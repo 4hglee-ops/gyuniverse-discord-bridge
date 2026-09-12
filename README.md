@@ -15,41 +15,45 @@
   <img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/discord.js-5865F2?style=flat-square&logo=discord&logoColor=white" alt="discord.js" />
   <img src="https://img.shields.io/badge/Deploy-Vercel-000000?style=flat-square&logo=vercel&logoColor=white" alt="Vercel" />
-  <img src="https://img.shields.io/badge/Distribution-Self--Hosted-2EA44F?style=flat-square" alt="Self Hosted" />
+  <img src="https://img.shields.io/badge/License-Apache--2.0-D22128?style=flat-square" alt="Apache 2.0" />
 </p>
 
-**Discord → Evidence → Shared AI Context**  
-A read-only Discord bridge that lets AI clients search team conversations, build evidence-aware context, compare team state, and connect through Remote MCP or GPT Actions.
+## Discord → Evidence → Shared AI Context
 
-[⚡ Quick Start](#-quick-start) · [✨ Features](#-features) · [💡 Use Cases](#-use-cases) · [🏗 Architecture](#-architecture) · [🔐 Security](#-security) · [📚 Docs](#-docs)
+Discord 대화를 AI가 안전하게 읽고 검색할 수 있도록 연결하는 **Read-only Discord → AI Context Bridge**입니다.  
+Remote MCP와 GPT Actions를 통해 여러 AI 클라이언트가 동일한 Discord 근거를 활용하고, 단순 메시지 요약을 넘어 **결정·진행상황·Blocker·변경사항을 근거 중심으로 해석**할 수 있도록 설계했습니다.
+
+<sub>Read-only Discord bridge for evidence-aware team context across MCP clients and GPT Actions.</sub>
+
+[⚡ 빠른 시작](#-빠른-시작-quick-start) · [✨ 주요 기능](#-주요-기능-features) · [💡 활용 예시](#-활용-예시-use-cases) · [🏗 아키텍처](#-아키텍처-architecture) · [🔐 보안](#-보안-security) · [📚 문서](#-문서-docs)
 
 </div>
 
 ---
 
-## 👀 At a glance
+## 👀 한눈에 보기
 
 <table>
 <tr>
 <td width="33%" valign="top">
 
-### 💬 Read Discord
+### 💬 Discord 읽기
 
-List accessible channels, read recent messages, and search conversation history without giving AI clients Discord write permissions.
-
-</td>
-<td width="33%" valign="top">
-
-### 🧠 Build Team Context
-
-Use evidence rules to distinguish decisions, tasks, blockers, risks, questions, and proposals instead of treating every message as a fact.
+Bot이 접근할 수 있는 채널을 조회하고, 최근 메시지와 과거 대화를 검색합니다. AI 클라이언트에는 Discord 쓰기 권한을 제공하지 않습니다.
 
 </td>
 <td width="33%" valign="top">
 
-### 🔌 Use Multiple AI Clients
+### 🧠 팀 컨텍스트 구성
 
-Expose the same Discord evidence through Remote MCP and a GPT Actions/OpenAPI adapter.
+대화를 그대로 사실로 취급하지 않고, 결정·작업·Blocker·질문·제안을 구분하는 Evidence 규칙을 적용합니다.
+
+</td>
+<td width="33%" valign="top">
+
+### 🔌 여러 AI 클라이언트 연결
+
+같은 Discord 근거를 Remote MCP와 GPT Actions/OpenAPI를 통해 ChatGPT, Claude 등 여러 클라이언트에서 활용할 수 있습니다.
 
 </td>
 </tr>
@@ -61,50 +65,50 @@ Discord
    ▼
 Gyuniverse Discord Bridge
    │
-   ├─ Channel / recent-message reads
-   ├─ History search + bounded fallback
+   ├─ Channel / Recent Message Read
+   ├─ History Search + Bounded Fallback
    ├─ Team Context Snapshot
-   ├─ Decision / Brief / Delta context
-   └─ Signed Team State Checkpoints
+   ├─ Decision / Brief / Delta Context
+   └─ Signed Team State Checkpoint
    │
-   ├──────── Remote MCP ────────► MCP clients
+   ├──────── Remote MCP ────────► MCP Clients
    └──────── GPT Actions ───────► Custom GPTs
 ```
 
-> This public repository is a sanitized distribution. Production-specific identities, private workspace decisions, and internal validation data are intentionally excluded.
+> 이 공개 저장소는 실제 운영 저장소에서 분리한 **sanitized distribution**입니다. 실제 팀원의 Identity, 비공개 Workspace 결정사항, 내부 검증 데이터 및 운영 Secret은 포함하지 않습니다.
 
 ---
 
-## ✨ Features
+## ✨ 주요 기능 (Features)
 
-| Status | Feature | Description |
+| 상태 | 기능 | 설명 |
 | :---: | --- | --- |
-| ✅ | Channel listing | Lists Discord text channels accessible to the configured bot |
-| ✅ | Recent messages | Reads recent messages from one channel |
-| ✅ | History search | Searches Discord history with local recent-message fallback when indexing is unavailable |
-| ✅ | Team Context Snapshot | Builds a shared evidence pack with freshness and completeness metadata |
-| ✅ | Team Brief / Delta contracts | Provides a consistent interpretation contract for team-state summaries |
-| ✅ | Decision Baseline | Preserves confirmed decisions until stronger superseding evidence exists |
-| ✅ | Team State Checkpoints | Signs normalized team state and computes deterministic diffs |
-| ✅ | Remote MCP | Streamable HTTP MCP endpoint with bearer/OAuth authentication |
-| ✅ | OAuth | DCR + PKCE support for compatible hosted MCP clients |
-| ✅ | GPT Actions | Read-only OpenAPI adapter over the same Discord/context logic |
+| ✅ | Channel Listing | Bot이 접근 가능한 Discord text channel 조회 |
+| ✅ | Recent Messages | 특정 채널의 최근 메시지 조회 |
+| ✅ | History Search | Discord 과거 대화 검색 및 인덱스 미준비 시 recent-message fallback |
+| ✅ | Team Context Snapshot | Freshness / Completeness 정보를 포함한 공통 Evidence Pack 구성 |
+| ✅ | Team Brief / Delta | 팀 상태를 일관된 기준으로 요약하고 변화만 비교 |
+| ✅ | Decision Baseline | 더 강한 반대 근거가 나타나기 전까지 확정 결정을 기준선으로 유지 |
+| ✅ | Team State Checkpoint | 정규화된 팀 상태를 서명하고 deterministic diff 계산 |
+| ✅ | Remote MCP | Bearer / OAuth 인증을 지원하는 Streamable HTTP MCP endpoint |
+| ✅ | OAuth | 호환 MCP client를 위한 DCR + PKCE 지원 |
+| ✅ | GPT Actions | 동일한 Discord/context 로직을 제공하는 Read-only OpenAPI adapter |
 
-### Intentionally read-only
+### 의도적으로 Read-only
 
 ```text
-❌ create Discord messages
-❌ edit Discord messages
-❌ delete Discord messages
+❌ Discord 메시지 작성
+❌ Discord 메시지 수정
+❌ Discord 메시지 삭제
 ```
 
-The bridge separates **reading team evidence** from **mutating the team workspace**.
+이 프로젝트는 **팀의 대화 근거를 읽는 기능**과 **실제 협업 공간을 변경하는 기능**을 분리하는 것을 기본 원칙으로 합니다.
 
 ---
 
-## ⚡ Quick Start
+## ⚡ 빠른 시작 (Quick Start)
 
-### 1. Install
+### 1. 설치
 
 ```bash
 git clone https://github.com/4hglee-ops/gyuniverse-discord-bridge.git
@@ -113,9 +117,11 @@ pnpm install
 cp .env.example .env
 ```
 
-### 2. Configure
+Windows PowerShell에서는 필요하면 `.env.example`을 직접 복사해 `.env`로 생성하면 됩니다.
 
-At minimum:
+### 2. 환경변수 설정
+
+최소 설정값:
 
 ```dotenv
 DISCORD_BOT_TOKEN=
@@ -127,40 +133,44 @@ MCP_OAUTH_TEAM_CODE=
 MCP_OAUTH_SIGNING_SECRET=
 ```
 
-For local smoke tests, optionally set:
+로컬 smoke test를 실행할 경우 선택적으로 설정:
 
 ```dotenv
 DISCORD_TEST_CHANNEL_ID=
 ```
 
-### 3. Run
+Secret의 실제 값은 저장소에 커밋하지 않습니다.
+
+### 3. 실행
+
+HTTP MCP 서버:
 
 ```bash
 pnpm dev
 ```
 
-or stdio MCP:
+stdio MCP:
 
 ```bash
 pnpm mcp:stdio
 ```
 
-### 4. Connect a Remote MCP client
+### 4. Remote MCP 연결
 
-Use your own deployment URL:
+배포한 서비스의 URL을 사용합니다.
 
 ```text
 https://your-discord-bridge.example.com/mcp
 ```
 
-Static bearer example:
+Static Bearer 예시:
 
 ```powershell
 $env:GYUNIVERSE_MCP_TOKEN = "<MCP_SHARED_SECRET>"
 claude mcp add --transport http gyuniverse-discord https://your-discord-bridge.example.com/mcp --header "Authorization: Bearer $env:GYUNIVERSE_MCP_TOKEN"
 ```
 
-OAuth-capable hosted clients can use the same `/mcp` endpoint with the server's protected-resource / authorization-server discovery flow.
+OAuth를 지원하는 hosted MCP client는 동일한 `/mcp` endpoint와 authorization-server discovery flow를 사용할 수 있습니다.
 
 ### GPT Actions
 
@@ -170,49 +180,53 @@ OpenAPI endpoint:
 https://your-discord-bridge.example.com/api/gpt/openapi
 ```
 
-Use a separate `GPT_ACTIONS_API_KEY` for the Actions adapter.
+GPT Actions용 인증에는 `MCP_SHARED_SECRET`과 분리된 `GPT_ACTIONS_API_KEY` 사용을 권장합니다.
 
 ---
 
-## 💡 Use Cases
+## 💡 활용 예시 (Use Cases)
 
 ```text
-Summarize the most important messages from the engineering channel.
+개발 채널에서 오늘 중요했던 대화를 요약해줘.
 ```
 
 ```text
-Search Discord history for the deployment discussion and show the evidence in chronological order.
+배포 관련 논의를 Discord 전체 기록에서 찾아서 시간순 근거와 함께 보여줘.
 ```
 
 ```text
-Separate confirmed decisions, proposals, in-progress work, blockers, and unanswered questions.
+현재 확정된 결정, 제안, 진행 중 작업, Blocker, 미해결 질문을 구분해서 정리해줘.
 ```
 
 ```text
-Compare the current normalized team state with the previous checkpoint and show only meaningful changes.
+이전 Team State Checkpoint와 현재 상태를 비교해서 의미 있는 변화만 보여줘.
 ```
+
+단순한 "대화 요약"보다 **무엇이 확정되었고, 무엇이 아직 제안인지, 어떤 근거가 있는지**를 구분하는 활용을 목표로 합니다.
 
 ---
 
-## 🧠 Context model
+## 🧠 Context Model
 
-The bridge is designed around a simple rule:
+이 프로젝트의 핵심 해석 원칙은 다음과 같습니다.
 
 ```text
 conversation ≠ decision
 proposal ≠ commitment
 role ≠ assignment
-message saying “done” ≠ verified completion
+message saying "done" ≠ verified completion
 ```
 
-AI clients receive raw Discord evidence plus explicit workflow contracts so they can make conservative, traceable interpretations.
+즉, 누군가 Discord에서 언급했다는 이유만으로 이를 확정 사실로 취급하지 않습니다.
+
+AI client에는 raw Discord evidence와 함께 명시적인 workflow contract를 전달하여, **보수적이고 추적 가능한 해석**을 할 수 있도록 합니다.
 
 ```text
 Discord Evidence
       ↓
-Snapshot + freshness/completeness
+Snapshot + Freshness / Completeness
       ↓
-Evidence-aware interpretation
+Evidence-aware Interpretation
       ↓
 Decisions / Work / Blockers / Questions / Proposals
       ↓
@@ -223,38 +237,39 @@ Deterministic Diff
 
 ---
 
-## 🏗 Architecture
+## 🏗 아키텍처 (Architecture)
 
 ```mermaid
 flowchart TD
-    D[Discord API] --> R[Discord read/search adapters]
-    R --> C[Context layer]
-    C --> S[Snapshot]
-    C --> B[Brief / Decision / Delta contracts]
-    B --> K[Signed checkpoint + deterministic diff]
+    D[Discord API] --> R[Discord Read / Search Adapters]
+    R --> C[Context Layer]
+    C --> S[Team Context Snapshot]
+    C --> B[Brief / Decision / Delta Contracts]
+    B --> K[Signed Checkpoint + Deterministic Diff]
     C --> M[Remote MCP]
     C --> A[GPT Actions / OpenAPI]
-    M --> MC[MCP clients]
+    M --> MC[MCP Clients]
     A --> GPT[Custom GPTs]
 ```
 
 ### Tech Stack
 
-| Layer | Technology |
+| 영역 | 기술 |
 | --- | --- |
 | Language | TypeScript |
 | Discord | discord.js |
 | MCP | `@modelcontextprotocol/server`, `@modelcontextprotocol/node` |
 | Validation | Zod |
 | Runtime | Node.js |
-| Package manager | pnpm |
-| Deployment | Vercel-compatible HTTP functions |
+| Package Manager | pnpm |
+| Deployment | Vercel-compatible HTTP Functions |
+| License | Apache-2.0 |
 
 ---
 
-## 🔐 Security
+## 🔐 보안 (Security)
 
-Do not commit:
+다음 값은 저장소에 커밋하지 않습니다.
 
 ```text
 Discord Bot Token
@@ -264,55 +279,66 @@ MCP_OAUTH_SIGNING_SECRET
 GPT_ACTIONS_API_KEY
 ```
 
-Production recommendations:
+운영 환경에서는 다음 원칙을 권장합니다.
 
-- keep the Discord bot read-only and least-privileged
-- use separate secrets for static bearer access, OAuth approval, and token signing
-- keep workspace-specific identity maps and decision data outside the public repository
-- rotate credentials immediately after suspected exposure
+- Discord Bot에는 필요한 최소 Read 권한만 부여
+- Static Bearer, OAuth 승인 코드, Token Signing Secret을 서로 분리
+- 실제 Workspace의 Identity Map과 Decision Data는 공개 저장소 외부에서 관리
+- Secret 노출이 의심되면 즉시 폐기 및 재발급
+- AI client에는 Discord write/edit/delete 기능을 제공하지 않음
 
-See [`SECURITY.md`](SECURITY.md).
+세부 내용은 [`SECURITY.md`](SECURITY.md)를 참고하세요.
 
 ---
 
-## 🧪 Validation
+## 🧪 검증 (Validation)
+
+기본 정적 검증:
 
 ```bash
 pnpm install
 pnpm typecheck
 ```
 
-Then run local read-only smoke tests against a Discord server you control.
+실제 Discord 연결 검증은 본인이 관리하는 Discord server와 별도 credential을 사용해 Read-only smoke test로 수행합니다.
 
-Before publishing or forking into a public workspace, review [`PUBLIC_RELEASE_CHECKLIST.md`](PUBLIC_RELEASE_CHECKLIST.md).
+이 공개 저장소는 공개 전 Git history privacy/secret 검사를 거쳐 실제 팀 데이터와 운영용 식별자를 제거했습니다. 공개 배포 전 점검 항목은 [`PUBLIC_RELEASE_CHECKLIST.md`](PUBLIC_RELEASE_CHECKLIST.md)에서 확인할 수 있습니다.
 
 ---
 
-## 📚 Docs
+## 📚 문서 (Docs)
 
-| Document | Purpose |
+| 문서 | 목적 |
 | --- | --- |
-| [`TEAM_AI_CONNECTION_QUICKSTART.md`](docs/TEAM_AI_CONNECTION_QUICKSTART.md) | Self-hosted client connection guide |
-| [`GPT_INSTRUCTIONS.md`](docs/GPT_INSTRUCTIONS.md) | Generic evidence-aware GPT instruction template |
-| [`TEAM_CONTEXT_SNAPSHOT.md`](docs/TEAM_CONTEXT_SNAPSHOT.md) | Snapshot model and completeness semantics |
-| [`TEAM_CONTEXT_SKILL.md`](docs/TEAM_CONTEXT_SKILL.md) | Shared Team Context workflow rules |
-| [`TEAM_COLLABORATION_WORKFLOWS.md`](docs/TEAM_COLLABORATION_WORKFLOWS.md) | Decision / task / blocker interpretation model |
-| [`TEAM_STATE_CHECKPOINTS.md`](docs/TEAM_STATE_CHECKPOINTS.md) | Checkpoint and deterministic diff design |
-| [`DECISION_BASELINE.example.md`](docs/DECISION_BASELINE.example.md) | Fictional baseline example for public use |
-| [`CHANGELOG.md`](CHANGELOG.md) | Public development journey |
+| [`TEAM_AI_CONNECTION_QUICKSTART.md`](docs/TEAM_AI_CONNECTION_QUICKSTART.md) | Self-hosted AI client 연결 가이드 |
+| [`GPT_INSTRUCTIONS.md`](docs/GPT_INSTRUCTIONS.md) | Evidence-aware GPT instruction template |
+| [`TEAM_CONTEXT_SNAPSHOT.md`](docs/TEAM_CONTEXT_SNAPSHOT.md) | Snapshot 및 completeness/freshness 모델 |
+| [`TEAM_CONTEXT_SKILL.md`](docs/TEAM_CONTEXT_SKILL.md) | 공통 Team Context workflow 규칙 |
+| [`TEAM_COLLABORATION_WORKFLOWS.md`](docs/TEAM_COLLABORATION_WORKFLOWS.md) | Decision / Task / Blocker 해석 모델 |
+| [`TEAM_STATE_CHECKPOINTS.md`](docs/TEAM_STATE_CHECKPOINTS.md) | Signed Checkpoint와 deterministic diff 설계 |
+| [`DECISION_BASELINE.example.md`](docs/DECISION_BASELINE.example.md) | 공개용 fictional Decision Baseline 예시 |
+| [`CHANGELOG.md`](CHANGELOG.md) | 주요 개발 과정과 변화 기록 |
 
 ---
 
 ## 🗺 Roadmap
 
-**Current**  
+**현재 (Current)**  
 `Discord Read → Search → Evidence Context → Checkpoint / Delta`
 
-**Next**  
-Thread/reply evidence, persistent checkpoint store, stronger per-user identity, broader reconciliation adapters.
+**다음 단계 (Next)**  
+Thread / Reply 기반 Evidence 강화, persistent checkpoint store, 사용자별 identity 강화, 외부 협업도구와의 reconciliation 확장.
 
-**Long-term direction**  
-Use Discord as one evidence source in a wider AI-assisted team-state layer without turning the bridge into an uncontrolled workspace writer.
+**장기 방향 (Long-term)**  
+Discord를 단순 채팅 로그가 아니라 여러 협업 도구 중 하나의 **Evidence Source**로 활용하여, AI가 팀의 현재 상태를 근거 기반으로 이해할 수 있는 Context Layer로 확장하는 것을 목표로 합니다.
+
+---
+
+## 📄 License
+
+Apache License 2.0
+
+[`LICENSE`](LICENSE)에서 전체 라이선스 내용을 확인할 수 있습니다.
 
 ---
 
@@ -322,8 +348,8 @@ Use Discord as one evidence source in a wider AI-assisted team-state layer witho
 
 ### 🌌 Gyuniverse
 
-**Discord conversations → Shared context → Better team decisions**
+**Discord 대화 → Shared Context → 더 나은 팀 의사결정**
 
-<sub>Open-source, self-hosted, read-only Discord context infrastructure.</sub>
+<sub>Open-source · Self-hosted · Read-only Discord Context Infrastructure</sub>
 
 </div>
