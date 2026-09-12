@@ -76,12 +76,13 @@ function bytesToBase64Url(bytes: Uint8Array): string {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
-function base64UrlToBytes(value: string): Uint8Array {
+function base64UrlToArrayBuffer(value: string): ArrayBuffer {
   const padded = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
   const binary = atob(padded);
-  const bytes = new Uint8Array(binary.length);
+  const buffer = new ArrayBuffer(binary.length);
+  const bytes = new Uint8Array(buffer);
   for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-  return bytes;
+  return buffer;
 }
 
 async function hmacKey(): Promise<CryptoKey | null> {
@@ -111,10 +112,10 @@ export async function verifyEnvelope<T>(token: string, prefix: string): Promise<
   const key = await hmacKey();
   if (!key) return null;
   const message = `${actualPrefix}.${body}`;
-  const valid = await crypto.subtle.verify("HMAC", key, base64UrlToBytes(signature), encoder.encode(message));
+  const valid = await crypto.subtle.verify("HMAC", key, base64UrlToArrayBuffer(signature), encoder.encode(message));
   if (!valid) return null;
   try {
-    return JSON.parse(decoder.decode(base64UrlToBytes(body))) as T;
+    return JSON.parse(decoder.decode(base64UrlToArrayBuffer(body))) as T;
   } catch {
     return null;
   }
