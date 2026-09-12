@@ -2,7 +2,7 @@
   "mcpServers": {
     "gyuniverse-discord": {
       "type": "http",
-      "url": "https://gyuniverse-discord-bridge.vercel.app/mcp",
+      "url": "https://your-discord-bridge.example.com/mcp",
       "headers": {
         "Authorization": "Bearer ${GYUNIVERSE_MCP_TOKEN}"
       }

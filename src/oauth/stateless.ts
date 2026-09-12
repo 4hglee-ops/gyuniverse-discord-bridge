@@ -52,12 +52,10 @@ export function publicBaseUrl(): string {
   const configured = env("PUBLIC_BASE_URL");
   if (configured) return configured.replace(/\/$/, "");
 
-  if (env("VERCEL_ENV") === "preview") {
-    const previewHost = env("VERCEL_URL");
-    if (previewHost) return `https://${previewHost}`;
-  }
+  const vercelHost = env("VERCEL_URL");
+  if (vercelHost) return `https://${vercelHost}`;
 
-  return "https://gyuniverse-discord-bridge.vercel.app";
+  return "http://localhost:3000";
 }
 
 export function canonicalMcpResource(): string {
@@ -65,11 +63,11 @@ export function canonicalMcpResource(): string {
 }
 
 export function oauthTeamCode(): string | null {
-  return env("MCP_OAUTH_TEAM_CODE") ?? env("MCP_SHARED_SECRET");
+  return env("MCP_OAUTH_TEAM_CODE");
 }
 
 function signingSecret(): string | null {
-  return env("MCP_OAUTH_SIGNING_SECRET") ?? env("MCP_SHARED_SECRET");
+  return env("MCP_OAUTH_SIGNING_SECRET");
 }
 
 function bytesToBase64Url(bytes: Uint8Array): string {
@@ -143,7 +141,6 @@ export function normalizeScope(scope: string | null): string {
 export function isAllowedRedirectUri(value: string): boolean {
   try {
     const url = new URL(value);
-
     if (url.username || url.password || url.hash) return false;
 
     if (

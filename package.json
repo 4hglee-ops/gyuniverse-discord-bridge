@@ -1,17 +1,17 @@
 {
   "name": "gyuniverse-discord-bridge",
   "version": "1.0.0",
-  "description": "",
+  "description": "Read-only Discord-to-AI context bridge with Remote MCP, OAuth, and GPT Actions support.",
   "main": "index.js",
   "scripts": {
-  "dev": "tsx src/mcp/rest-http-server.ts",
-  "mcp:stdio": "tsx src/mcp/server.ts",
-  "rest:test": "tsx src/rest-test.ts",
-  "typecheck": "tsc --noEmit"
+    "dev": "tsx src/mcp/rest-http-server.ts",
+    "mcp:stdio": "tsx src/mcp/server.ts",
+    "rest:test": "tsx src/rest-test.ts",
+    "typecheck": "tsc --noEmit"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": ["discord", "mcp", "ai", "chatgpt", "claude", "typescript"],
+  "author": "Honggyu Lee",
+  "license": "MIT",
   "packageManager": "pnpm@10.15.0",
   "dependencies": {
     "@modelcontextprotocol/node": "^2.0.0",
