@@ -1,5 +1,5 @@
 import { createTeamDeltaContext } from "../../../src/context/team-context-workflows.js";
-import { requireGptActionsAuth } from "../../../src/gpt/actions-auth.js";
+import { authorizedGptReader } from "../../../src/gpt/actions-auth.js";
 import { createGptActionsContext } from "../../../src/gpt/actions-context.js";
 
 function parseChannelIds(value: string | null): string[] | undefined {
@@ -36,8 +36,8 @@ function parseInteger(
 }
 
 export async function GET(request: Request): Promise<Response> {
-  const authError = requireGptActionsAuth(request);
-  if (authError) return authError;
+  const reader = await authorizedGptReader(request);
+  if (reader instanceof Response) return reader;
 
   try {
     const url = new URL(request.url);
@@ -58,15 +58,9 @@ export async function GET(request: Request): Promise<Response> {
       "perChannelLimit",
     );
 
-    const { rest, guildId, guildName } = createGptActionsContext();
-    const result = await createTeamDeltaContext({
-      rest,
-      guildId,
-      guildName,
-      channelIds,
-      since,
-      lookbackHours,
-      perChannelLimit,
+    const result = await reader.context("delta", {
+      channelIds, since, lookbackHours, perChannelLimit,
+      serverId: url.searchParams.get("serverId") ?? undefined,
     });
 
     return Response.json(result, {
