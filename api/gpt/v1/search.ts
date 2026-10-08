@@ -6,6 +6,7 @@ import {
   type DiscordMessageSearchSort,
 } from "../../../src/discord/rest-search.js";
 import { authorizedGptReader } from "../../../src/gpt/actions-auth.js";
+import { AccessDeniedError, ScopeSelectionError } from "../../../src/access/types.js";
 import { createGptActionsContext } from "../../../src/gpt/actions-context.js";
 
 function parseLimit(value: string | null): number {
@@ -49,6 +50,12 @@ export async function GET(request: Request): Promise<Response> {
     });
     return Response.json(result, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
+    if (error instanceof AccessDeniedError) {
+      return Response.json({error:"Channel or server not found or not accessible."},{status:404});
+    }
+    if (error instanceof ScopeSelectionError) {
+      return Response.json({error:"serverId is required for multi-server access."},{status:400});
+    }
     if (error instanceof DiscordSearchIndexPendingError) {
       return Response.json(
         {
