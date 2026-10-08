@@ -1,5 +1,5 @@
-import { createDiscordRestClient } from "../../src/discord/rest-client.js";
-import { adminStoreFromEnv, executeAdminAction, isAdminAuthorized } from "../../src/admin/service.js";
+import { createDiscordRestClient } from "../../../src/discord/rest-client.js";
+import { adminStoreFromEnv, executeAdminAction, isAdminAuthorized } from "../../../src/admin/service.js";
 
 export async function POST(request: Request): Promise<Response> {
   if (!isAdminAuthorized(request)) return Response.json({error:"Unauthorized"},{status:401});
