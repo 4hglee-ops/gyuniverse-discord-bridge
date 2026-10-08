@@ -7,9 +7,17 @@
     "dev": "tsx src/mcp/rest-http-server.ts",
     "mcp:stdio": "tsx src/mcp/server.ts",
     "rest:test": "tsx src/rest-test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts"
   },
-  "keywords": ["discord", "mcp", "ai", "chatgpt", "claude", "typescript"],
+  "keywords": [
+    "discord",
+    "mcp",
+    "ai",
+    "chatgpt",
+    "claude",
+    "typescript"
+  ],
   "author": "Honggyu Lee",
   "license": "Apache-2.0",
   "packageManager": "pnpm@10.15.0",
