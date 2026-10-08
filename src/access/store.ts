@@ -92,6 +92,16 @@ export class SupabaseAccessStore implements AccessStore {
       can_read: "eq.true",
     });
 
+    const activeChannels = await this.rows<{id:string;guild_id:string}>("bridge_channels", {
+      guild_id: "in.(" + guildIds.join(",") + ")",
+      active: "eq.true",
+    });
+    const activeByGuild = new Map<string, Set<string>>();
+    for (const channel of activeChannels) {
+      const active = activeByGuild.get(channel.guild_id) ?? new Set<string>();
+      active.add(channel.id);
+      activeByGuild.set(channel.guild_id, active);
+    }
     return grants.flatMap((grant): GuildGrant[] => {
       const guild = byGuild.get(grant.guild_id);
       if (!guild) return [];
@@ -101,7 +111,8 @@ export class SupabaseAccessStore implements AccessStore {
         mode: grant.access_mode,
         allowedChannelIds: new Set(
           channelGrants
-            .filter((channel) => channel.guild_id === guild.id)
+            .filter((channel) => channel.guild_id === guild.id &&
+              activeByGuild.get(guild.id)?.has(channel.channel_id))
             .map((channel) => channel.channel_id),
         ),
       }];
