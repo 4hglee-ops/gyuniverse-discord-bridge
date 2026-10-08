@@ -54,6 +54,16 @@ begin
     raise exception 'Duplicate channel IDs';
   end if;
 
+  if exists (
+    select 1
+    from public.bridge_channels existing
+    join jsonb_array_elements(p_channels) as incoming(value)
+      on incoming.value->>'id' = existing.id
+    where existing.guild_id <> p_guild_id
+  ) then
+    raise exception 'Cross-guild channel conflict';
+  end if;
+
   select exists(select 1 from public.bridge_guilds where id = p_guild_id)
     into v_exists;
   if not v_exists and not p_create then
@@ -85,7 +95,7 @@ begin
   where a.guild_id = p_guild_id
     and not exists (
       select 1 from public.bridge_channels c
-      where c.id = a.channel_id and c.active
+      where c.id = a.channel_id and c.guild_id = a.guild_id and c.active
     );
 
   insert into public.bridge_audit_logs(actor,action,target_type,target_id,details)
