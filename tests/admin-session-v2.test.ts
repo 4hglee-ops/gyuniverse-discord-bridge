@@ -12,7 +12,7 @@ test("admin UI has isolated CSP and no admin credential",async()=>{
  const body=await page.text();
  const csp=page.headers.get("Content-Security-Policy")??"";
  assert.match(body,/Gyuniverse Bridge/);
- assert.match(body,/채널 읽기 권한/);
+ assert.match(body,/사용자 및 읽기 권한/);
  assert.match(csp,/script-src 'nonce-/);
  assert.equal(body.includes("BRIDGE_ADMIN_API_KEY="),false);
 });
