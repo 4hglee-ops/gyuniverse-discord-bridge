@@ -1,7 +1,7 @@
 import { toBridgeMessageRest } from "../../../src/adapters/discord-rest-message-adapter.js";
 import { listTextChannelsRest } from "../../../src/discord/rest-channels.js";
 import { getRecentMessagesRest } from "../../../src/discord/rest-messages.js";
-import { requireGptActionsAuth } from "../../../src/gpt/actions-auth.js";
+import { authorizedGptReader } from "../../../src/gpt/actions-auth.js";
 import { createGptActionsContext } from "../../../src/gpt/actions-context.js";
 
 function parseLimit(value: string | null): number {
@@ -16,8 +16,8 @@ function parseLimit(value: string | null): number {
 }
 
 export async function GET(request: Request): Promise<Response> {
-  const authError = requireGptActionsAuth(request);
-  if (authError) return authError;
+  const reader = await authorizedGptReader(request);
+  if (reader instanceof Response) return reader;
 
   try {
     const url = new URL(request.url);
@@ -31,34 +31,16 @@ export async function GET(request: Request): Promise<Response> {
       );
     }
 
-    const { rest, guildId, guildName } = createGptActionsContext();
-    const channels = await listTextChannelsRest(rest, guildId);
-    const channel = channels.find((item) => item.id === channelId);
-
-    if (!channel) {
-      return Response.json(
-        { error: "Channel was not found or is not accessible by the bot." },
-        { status: 404 },
-      );
-    }
-
-    const messages = await getRecentMessagesRest(rest, channelId, limit);
-    const result = messages.map((message) =>
-      toBridgeMessageRest(message, {
-        guildId,
-        guildName,
-        channelId,
-        channelName: channel.name,
-      }),
-    );
-
+    const messages = await reader.recentMessages(channelId, limit,
+      url.searchParams.get("serverId") ?? undefined);
+    const channel = { id: channelId, name: messages[0]?.channelName ?? channelId };
     return Response.json(
       {
         channel: {
           id: channel.id,
           name: channel.name,
         },
-        messages: result,
+        messages,
       },
       {
         headers: {
