@@ -94,6 +94,7 @@ export function buildRestMcpServer(
     {
       description: "지정한 Discord 텍스트 채널의 최근 메시지를 조회합니다.",
       inputSchema: z.object({
+        serverId: z.string().min(1).optional(),
         channelId: z.string().min(1),
         limit: z.number().int().min(1).max(100).default(20),
       }),
@@ -104,8 +105,8 @@ export function buildRestMcpServer(
         openWorldHint: true,
       },
     },
-    async ({ channelId, limit }) => {
-      const bridgeMessages = await reader.recentMessages(channelId, limit);
+    async ({ serverId, channelId, limit }) => {
+      const bridgeMessages = await reader.recentMessages(channelId, limit, serverId);
       return { content: [{ type: "text", text: JSON.stringify(bridgeMessages, null, 2) }] };
     },
   );
@@ -116,6 +117,7 @@ export function buildRestMcpServer(
       description:
         "여러 Discord 채널의 최근 메시지를 하나의 Evidence Pack으로 모읍니다. 의미 판정은 하지 않습니다.",
       inputSchema: z.object({
+        serverId: z.string().min(1).optional(),
         channelIds: z.array(z.string().min(1)).max(20).optional(),
         since: z.string().optional(),
         perChannelLimit: z.number().int().min(1).max(100).default(50),
@@ -127,8 +129,8 @@ export function buildRestMcpServer(
         openWorldHint: true,
       },
     },
-    async ({ channelIds, since, perChannelLimit }) => {
-      const result = await reader.snapshot({ channelIds, since, perChannelLimit });
+    async ({ serverId, channelIds, since, perChannelLimit }) => {
+      const result = await reader.snapshot({ serverId, channelIds, since, perChannelLimit });
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -139,6 +141,7 @@ export function buildRestMcpServer(
       description:
         "현재 팀 상태 브리핑을 위한 Decision Baseline + Snapshot + Team Brief Contract를 반환합니다.",
       inputSchema: z.object({
+        serverId: z.string().min(1).optional(),
         channelIds: z.array(z.string().min(1)).max(20).optional(),
         since: z.string().optional(),
         perChannelLimit: z.number().int().min(1).max(100).default(50),
@@ -150,8 +153,8 @@ export function buildRestMcpServer(
         openWorldHint: true,
       },
     },
-    async ({ channelIds, since, perChannelLimit }) => {
-      const result = await reader.context("brief", { channelIds, since, perChannelLimit });
+    async ({ serverId, channelIds, since, perChannelLimit }) => {
+      const result = await reader.context("brief", { serverId, channelIds, since, perChannelLimit });
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -162,6 +165,7 @@ export function buildRestMcpServer(
       description:
         "Decision Baseline, 열린 결정 후보, 최신 Discord Snapshot과 Decision Ledger Contract를 반환합니다.",
       inputSchema: z.object({
+        serverId: z.string().min(1).optional(),
         channelIds: z.array(z.string().min(1)).max(20).optional(),
         since: z.string().optional(),
         perChannelLimit: z.number().int().min(1).max(100).default(50),
@@ -173,8 +177,8 @@ export function buildRestMcpServer(
         openWorldHint: true,
       },
     },
-    async ({ channelIds, since, perChannelLimit }) => {
-      const result = await reader.context("ledger", { channelIds, since, perChannelLimit });
+    async ({ serverId, channelIds, since, perChannelLimit }) => {
+      const result = await reader.context("ledger", { serverId, channelIds, since, perChannelLimit });
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -185,6 +189,7 @@ export function buildRestMcpServer(
       description:
         "기준 시각 이후 변화 분석용 Decision Baseline + Snapshot + Delta Brief Contract를 반환합니다.",
       inputSchema: z.object({
+        serverId: z.string().min(1).optional(),
         channelIds: z.array(z.string().min(1)).max(20).optional(),
         since: z.string().optional(),
         lookbackHours: z.number().int().min(1).max(168).default(24),
@@ -197,8 +202,8 @@ export function buildRestMcpServer(
         openWorldHint: true,
       },
     },
-    async ({ channelIds, since, lookbackHours, perChannelLimit }) => {
-      const result = await reader.context("delta", { channelIds, since, lookbackHours, perChannelLimit });
+    async ({ serverId, channelIds, since, lookbackHours, perChannelLimit }) => {
+      const result = await reader.context("delta", { serverId, channelIds, since, lookbackHours, perChannelLimit });
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -262,6 +267,7 @@ export function buildRestMcpServer(
       description:
         "Discord 메시지 과거 검색. 결정 이유, 변경 이력, 특정 키워드/기간/작성자 Evidence 보완에 사용합니다.",
       inputSchema: z.object({
+        serverId: z.string().min(1).optional(),
         query: z.string().max(1024).optional(),
         channelId: z.string().min(1).optional(),
         authorId: z.string().min(1).optional(),
@@ -277,8 +283,8 @@ export function buildRestMcpServer(
         openWorldHint: true,
       },
     },
-    async ({ query, channelId, authorId, after, before, limit, sort }) => {
-      const result = await reader.search({query, channelId, authorId, after, before, limit, sort});
+    async ({ serverId, query, channelId, authorId, after, before, limit, sort }) => {
+      const result = await reader.search({serverId, query, channelId, authorId, after, before, limit, sort});
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     },
   );
