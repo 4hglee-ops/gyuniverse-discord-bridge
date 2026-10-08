@@ -8,7 +8,7 @@ import { createTeamBriefContext, createDecisionLedgerContext, createTeamDeltaCon
 import { createTeamStateCheckpoint, readTeamStateCheckpoint, diffTeamStates } from "../src/context/team-state-checkpoint.js";
 import { setupEnv, mockDiscord, guildId, guildName, channelId, state, metadata } from "./fixtures.js";
 
-test("MCP registers all nine original tools", () => {
+test("MCP registers all nine original tools plus server discovery", () => {
  const restore=setupEnv();
  const names:string[]=[];
  const original=McpServer.prototype.registerTool;
@@ -16,7 +16,7 @@ test("MCP registers all nine original tools", () => {
  (McpServer.prototype as any).registerTool=function(name:string) { names.push(name); return {remove(){},enable(){},disable(){},update(){}} };
  try {
    buildRestMcpServer({rest:new REST({version:"10"}),guildId,guildName});
-   assert.deepEqual(names,["list_discord_channels","get_recent_discord_messages","get_team_context_snapshot","get_team_brief_context","get_decision_ledger_context","get_team_delta_context","create_team_state_checkpoint","compare_team_state_checkpoint","search_discord_messages"]);
+   assert.deepEqual(names,["list_discord_servers","list_discord_channels","get_recent_discord_messages","get_team_context_snapshot","get_team_brief_context","get_decision_ledger_context","get_team_delta_context","create_team_state_checkpoint","compare_team_state_checkpoint","search_discord_messages"]);
  } finally { McpServer.prototype.registerTool=original; restore(); }
 });
 test("snapshot/brief/ledger/delta preserve response shapes and block unknown channels", async ()=>{
