@@ -1,5 +1,5 @@
 import { createTeamContextSnapshot } from "../../../src/context/team-context-snapshot.js";
-import { requireGptActionsAuth } from "../../../src/gpt/actions-auth.js";
+import { authorizedGptReader } from "../../../src/gpt/actions-auth.js";
 import { createGptActionsContext } from "../../../src/gpt/actions-context.js";
 
 function parseChannelIds(value: string | null): string[] | undefined {
@@ -32,8 +32,8 @@ function parsePerChannelLimit(value: string | null): number {
 }
 
 export async function GET(request: Request): Promise<Response> {
-  const authError = requireGptActionsAuth(request);
-  if (authError) return authError;
+  const reader = await authorizedGptReader(request);
+  if (reader instanceof Response) return reader;
 
   try {
     const url = new URL(request.url);
@@ -43,15 +43,7 @@ export async function GET(request: Request): Promise<Response> {
       url.searchParams.get("perChannelLimit"),
     );
 
-    const { rest, guildId, guildName } = createGptActionsContext();
-    const snapshot = await createTeamContextSnapshot({
-      rest,
-      guildId,
-      guildName,
-      channelIds,
-      since,
-      perChannelLimit,
-    });
+    const snapshot = await reader.snapshot({channelIds, since, perChannelLimit, serverId: url.searchParams.get("serverId") ?? undefined});
 
     return Response.json(snapshot, {
       headers: {
