@@ -32,3 +32,15 @@ Discord Bot token, 운영 OAuth Secret, GPT Actions API Key 없이 실행됩니�
 - 검색·Snapshot·Decision Context의 서버 간 데이터 격리
 - 신규 채널 기본 차단과 변경 즉시 token 접근 차단
 - guild-scoped Decision Baseline 및 Checkpoint 호환성
+
+## v2 Admin API (개발 중)
+
+관리 작업은 `POST /api/admin/v1/actions`와 전용 `BRIDGE_ADMIN_API_KEY`로만 수행합니다.
+기존 `MCP_SHARED_SECRET` 또는 `GPT_ACTIONS_API_KEY`는 관리자 API에 사용할 수 없습니다.
+관리 API에는 서버 측 `BRIDGE_SUPABASE_SERVICE_ROLE_KEY`가 필요합니다.
+
+지원 작업: `registerGuild`, `syncGuild`, `createUser`, `setAccess`, `issueCredential`, `revokeCredential`.
+개인 키는 생성 시 한 번만 반환되고 DB에는 SHA-256 해시만 저장됩니다.
+
+DB 마이그레이션은 반드시 `001_bridge_acl.sql` 다음에 `002_bridge_admin.sql`을 적용해야 합니다.
+현재 실제 운영 DB에는 적용하지 않았습니다. 관리자 UI는 별도 작업입니다.
