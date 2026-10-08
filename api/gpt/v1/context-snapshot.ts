@@ -1,5 +1,6 @@
 import { createTeamContextSnapshot } from "../../../src/context/team-context-snapshot.js";
 import { authorizedGptReader } from "../../../src/gpt/actions-auth.js";
+import { AccessDeniedError, ScopeSelectionError } from "../../../src/access/types.js";
 import { createGptActionsContext } from "../../../src/gpt/actions-context.js";
 
 function parseChannelIds(value: string | null): string[] | undefined {
@@ -51,6 +52,12 @@ export async function GET(request: Request): Promise<Response> {
       },
     });
   } catch (error) {
+    if (error instanceof AccessDeniedError) {
+      return Response.json({error:"Channel or server not found or not accessible."},{status:404});
+    }
+    if (error instanceof ScopeSelectionError) {
+      return Response.json({error:"serverId is required for multi-server access."},{status:400});
+    }
     if (
       error instanceof Error &&
       (
