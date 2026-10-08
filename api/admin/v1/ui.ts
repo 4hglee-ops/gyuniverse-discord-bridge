@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 
 export function GET():Response {
  const nonce=randomBytes(16).toString("base64");
- const html=String.raw\`<!doctype html>
+ const html=String.raw`<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Gyuniverse Bridge · Admin</title>
 <style>
@@ -145,7 +145,7 @@ $("issue-key").onclick=()=>run(async()=>{
  status("발급한 키는 한 번만 표시됩니다.");
 });
 run(initialize);
-</script></body></html>\`.replaceAll("\\\${nonce}",nonce);
+</script></body></html>`.replaceAll("${nonce}",nonce);
  return new Response(html,{headers:{
    "Content-Type":"text/html; charset=utf-8",
    "Cache-Control":"no-store",
