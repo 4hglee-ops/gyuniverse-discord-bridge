@@ -10,6 +10,7 @@ export interface TeamContextSnapshotOptions {
   guildId: string;
   guildName: string;
   channelIds?: string[];
+  allowedChannelIds?: readonly string[];
   since?: string;
   perChannelLimit?: number;
 }
@@ -60,6 +61,7 @@ export async function createTeamContextSnapshot(
     guildId,
     guildName,
     channelIds,
+    allowedChannelIds,
     since,
     perChannelLimit = 50,
   } = options;
@@ -76,13 +78,14 @@ export async function createTeamContextSnapshot(
   }
 
   const accessibleChannels = await listTextChannelsRest(rest, guildId);
+  const allowed = allowedChannelIds === undefined ? null : new Set(allowedChannelIds);
   const channelById = new Map(
-    accessibleChannels.map((channel) => [channel.id, channel]),
+    accessibleChannels.filter((channel) => allowed === null || allowed.has(channel.id)).map((channel) => [channel.id, channel]),
   );
 
-  const requestedChannelIds = channelIds?.length
+  const requestedChannelIds = channelIds !== undefined
     ? [...new Set(channelIds)]
-    : accessibleChannels.map((channel) => channel.id);
+    : [...channelById.keys()];
 
   const inaccessibleChannelIds = requestedChannelIds.filter(
     (channelId) => !channelById.has(channelId),
