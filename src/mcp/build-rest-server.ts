@@ -61,9 +61,21 @@ export function buildRestMcpServer(
   });
 
   server.registerTool(
+    "list_discord_servers",
+    {
+      description: "현재 사용자에게 허용된 Discord 서버 목록을 조회합니다.",
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    },
+    async () => ({
+      content: [{ type: "text", text: JSON.stringify(reader.listServers(), null, 2) }],
+    }),
+  );
+
+  server.registerTool(
     "list_discord_channels",
     {
       description: "Discord 서버에서 봇이 접근 가능한 텍스트 채널 목록을 조회합니다.",
+      inputSchema: z.object({ serverId: z.string().min(1).optional() }),
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -71,8 +83,8 @@ export function buildRestMcpServer(
         openWorldHint: true,
       },
     },
-    async () => {
-      const result = await reader.listChannels();
+    async ({ serverId }) => {
+      const result = await reader.listChannels(serverId);
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     },
   );
