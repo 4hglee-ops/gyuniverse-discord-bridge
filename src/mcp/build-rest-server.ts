@@ -1,4 +1,6 @@
 ﻿import { z } from "zod";
+import { ScopedDiscordReader } from "../access/discord-reader.js";
+import { legacyScope } from "../access/scope.js";
 import { McpServer } from "@modelcontextprotocol/server";
 import type { REST } from "discord.js";
 
@@ -22,6 +24,7 @@ export interface RestMcpServerOptions {
   rest: REST;
   guildId: string;
   guildName: string;
+  reader?: ScopedDiscordReader;
 }
 
 const stateItemSchema = z.object({
@@ -50,6 +53,7 @@ export function buildRestMcpServer(
   options: RestMcpServerOptions,
 ): McpServer {
   const { rest, guildId, guildName } = options;
+  const reader = options.reader ?? new ScopedDiscordReader(rest, legacyScope(guildId, guildName));
 
   const server = new McpServer({
     name: "gyuniverse-discord-bridge",
@@ -68,8 +72,7 @@ export function buildRestMcpServer(
       },
     },
     async () => {
-      const channels = await listTextChannelsRest(rest, guildId);
-      const result = channels.map((channel) => ({ ...channel, guildName }));
+      const result = await reader.listChannels();
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -90,20 +93,7 @@ export function buildRestMcpServer(
       },
     },
     async ({ channelId, limit }) => {
-      const channels = await listTextChannelsRest(rest, guildId);
-      const channel = channels.find((item) => item.id === channelId);
-      if (!channel) {
-        throw new Error(`접근 가능한 Discord 텍스트 채널을 찾을 수 없습니다: ${channelId}`);
-      }
-      const discordMessages = await getRecentMessagesRest(rest, channelId, limit);
-      const bridgeMessages = discordMessages.map((message) =>
-        toBridgeMessageRest(message, {
-          guildId,
-          guildName,
-          channelId,
-          channelName: channel.name,
-        }),
-      );
+      const bridgeMessages = await reader.recentMessages(channelId, limit);
       return { content: [{ type: "text", text: JSON.stringify(bridgeMessages, null, 2) }] };
     },
   );
@@ -126,14 +116,7 @@ export function buildRestMcpServer(
       },
     },
     async ({ channelIds, since, perChannelLimit }) => {
-      const result = await createTeamContextSnapshot({
-        rest,
-        guildId,
-        guildName,
-        channelIds,
-        since,
-        perChannelLimit,
-      });
+      const result = await reader.snapshot({ channelIds, since, perChannelLimit });
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -156,14 +139,7 @@ export function buildRestMcpServer(
       },
     },
     async ({ channelIds, since, perChannelLimit }) => {
-      const result = await createTeamBriefContext({
-        rest,
-        guildId,
-        guildName,
-        channelIds,
-        since,
-        perChannelLimit,
-      });
+      const result = await reader.context("brief", { channelIds, since, perChannelLimit });
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -186,14 +162,7 @@ export function buildRestMcpServer(
       },
     },
     async ({ channelIds, since, perChannelLimit }) => {
-      const result = await createDecisionLedgerContext({
-        rest,
-        guildId,
-        guildName,
-        channelIds,
-        since,
-        perChannelLimit,
-      });
+      const result = await reader.context("ledger", { channelIds, since, perChannelLimit });
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -217,15 +186,7 @@ export function buildRestMcpServer(
       },
     },
     async ({ channelIds, since, lookbackHours, perChannelLimit }) => {
-      const result = await createTeamDeltaContext({
-        rest,
-        guildId,
-        guildName,
-        channelIds,
-        since,
-        lookbackHours,
-        perChannelLimit,
-      });
+      const result = await reader.context("delta", { channelIds, since, lookbackHours, perChannelLimit });
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -305,51 +266,8 @@ export function buildRestMcpServer(
       },
     },
     async ({ query, channelId, authorId, after, before, limit, sort }) => {
-      const channels = await listTextChannelsRest(rest, guildId);
-      const channelById = new Map(channels.map((channel) => [channel.id, channel]));
-      if (channelId && !channelById.has(channelId)) {
-        throw new Error(`접근 가능한 Discord 텍스트 채널을 찾을 수 없습니다: ${channelId}`);
-      }
-      const search = await searchGuildMessagesRest(rest, guildId, {
-        content: query,
-        channelIds: channelId ? [channelId] : channels.map((channel) => channel.id),
-        authorIds: authorId ? [authorId] : undefined,
-        after,
-        before,
-        limit,
-        sort,
-      });
-      const bridgeMessages = search.messages.flatMap((message) => {
-        const channel = channelById.get(message.channel_id);
-        if (!channel) return [];
-        return [
-          toBridgeMessageRest(message, {
-            guildId,
-            guildName,
-            channelId: channel.id,
-            channelName: channel.name,
-          }),
-        ];
-      });
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              {
-                totalResults: search.totalResults,
-                returnedResults: bridgeMessages.length,
-                searchMode: search.searchMode,
-                historyComplete: search.historyComplete,
-                scannedMessages: search.scannedMessages ?? null,
-                messages: bridgeMessages,
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-      };
+      const result = await reader.search({query, channelId, authorId, after, before, limit, sort});
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     },
   );
 
