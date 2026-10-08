@@ -1,5 +1,6 @@
 import { createDecisionLedgerContext } from "../../../src/context/team-context-workflows.js";
 import { authorizedGptReader } from "../../../src/gpt/actions-auth.js";
+import { AccessDeniedError, ScopeSelectionError } from "../../../src/access/types.js";
 import { createGptActionsContext } from "../../../src/gpt/actions-context.js";
 
 function parseChannelIds(value: string | null): string[] | undefined {
@@ -49,6 +50,8 @@ export async function GET(request: Request): Promise<Response> {
       headers: { "Cache-Control": "no-store" },
     });
   } catch (error) {
+    if (error instanceof AccessDeniedError) return Response.json({error:"Resource not accessible."},{status:404});
+    if (error instanceof ScopeSelectionError) return Response.json({error:"serverId required."},{status:400});
     if (
       error instanceof Error &&
       (
