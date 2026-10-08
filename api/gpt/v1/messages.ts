@@ -2,6 +2,7 @@ import { toBridgeMessageRest } from "../../../src/adapters/discord-rest-message-
 import { listTextChannelsRest } from "../../../src/discord/rest-channels.js";
 import { getRecentMessagesRest } from "../../../src/discord/rest-messages.js";
 import { authorizedGptReader } from "../../../src/gpt/actions-auth.js";
+import { AccessDeniedError, ScopeSelectionError } from "../../../src/access/types.js";
 import { createGptActionsContext } from "../../../src/gpt/actions-context.js";
 
 function parseLimit(value: string | null): number {
@@ -49,6 +50,12 @@ export async function GET(request: Request): Promise<Response> {
       },
     );
   } catch (error) {
+    if (error instanceof AccessDeniedError) {
+      return Response.json({error:"Channel or server not found or not accessible."},{status:404});
+    }
+    if (error instanceof ScopeSelectionError) {
+      return Response.json({error:"serverId is required for multi-server access."},{status:400});
+    }
     if (error instanceof Error && error.message.startsWith("limit must")) {
       return Response.json({ error: error.message }, { status: 400 });
     }
