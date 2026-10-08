@@ -1,20 +1,25 @@
 import { listTextChannelsRest } from "../../../src/discord/rest-channels.js";
-import { requireGptActionsAuth } from "../../../src/gpt/actions-auth.js";
+import { authorizedGptReader } from "../../../src/gpt/actions-auth.js";
 import { createGptActionsContext } from "../../../src/gpt/actions-context.js";
 
 export async function GET(request: Request): Promise<Response> {
-  const authError = requireGptActionsAuth(request);
-  if (authError) return authError;
+  const reader = await authorizedGptReader(request);
+  if (reader instanceof Response) return reader;
 
   try {
-    const { rest, guildId, guildName } = createGptActionsContext();
-    const channels = await listTextChannelsRest(rest, guildId);
-
+    const requestedServer = new URL(request.url).searchParams.get("serverId") ?? undefined;
+    const channels = await reader.listChannels(requestedServer);
+    const guild = requestedServer
+      ? reader.scope.guilds.find(g => g.id === requestedServer)
+      : reader.scope.guilds[0];
+    if (!guild || (reader.scope.guilds.length > 1 && !requestedServer)) {
+      return Response.json({ error: "serverId is required or inaccessible." }, { status: 400 });
+    }
     return Response.json(
       {
         guild: {
-          id: guildId,
-          name: guildName,
+          id: guild.id,
+          name: guild.name,
         },
         channels: channels.map((channel) => ({
           id: channel.id,
