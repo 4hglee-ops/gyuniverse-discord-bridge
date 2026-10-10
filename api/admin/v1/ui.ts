@@ -52,7 +52,7 @@ table{border-collapse:collapse;width:100%}td,th{padding:10px 6px;text-align:left
 <section id="audit" class="panel hidden"><h2>변경 이력</h2><div id="audit-list"></div></section>
 <div id="status" class="status" role="status" aria-live="polite"></div>
 </div></div></main>
-<script nonce="\${nonce}">
+<script nonce="__GDB_SCRIPT_NONCE__">
 "use strict";
 const base="/api/admin/v1/";
 const $=id=>document.getElementById(id);
@@ -145,7 +145,7 @@ $("issue-key").onclick=()=>run(async()=>{
  status("발급한 키는 한 번만 표시됩니다.");
 });
 run(initialize);
-</script></body></html>`.replaceAll("${nonce}",nonce);
+</script></body></html>`.replaceAll("__GDB_SCRIPT_NONCE__",nonce);
  return new Response(html,{headers:{
    "Content-Type":"text/html; charset=utf-8",
    "Cache-Control":"no-store",
