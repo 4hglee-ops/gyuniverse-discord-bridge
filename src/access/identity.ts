@@ -15,6 +15,10 @@ function equalsSecret(left: string, right: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+export function personalAuthOnly(): boolean {
+  return process.env.BRIDGE_PERSONAL_AUTH_ONLY?.trim().toLowerCase() === "true";
+}
+
 export function hashPersonalKey(key: string): string {
   return createHash("sha256").update(key, "utf8").digest("hex");
 }
@@ -49,9 +53,10 @@ export async function principalFromMcpRequest(
   if (!token) return null;
 
   const shared = process.env.MCP_SHARED_SECRET?.trim();
-  if (shared && equalsSecret(token, shared)) return legacyPrincipal;
+  if (!personalAuthOnly() && shared && equalsSecret(token, shared)) return legacyPrincipal;
 
   if (isPersonalKey(token)) return principalFromPersonalKey(token, store);
+  if (personalAuthOnly()) return null;
 
   // Existing v1 OAuth team approvals are deliberately limited to
   // the legacy server until per-user OAuth credentials are introduced.
@@ -66,6 +71,6 @@ export async function principalFromGptRequest(
   const token = bearerToken(request);
   if (!token) return null;
   const shared = process.env.GPT_ACTIONS_API_KEY?.trim();
-  if (shared && equalsSecret(token, shared)) return legacyPrincipal;
+  if (!personalAuthOnly() && shared && equalsSecret(token, shared)) return legacyPrincipal;
   return principalFromPersonalKey(token, store);
 }
