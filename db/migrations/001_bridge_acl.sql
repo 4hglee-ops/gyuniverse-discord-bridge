@@ -61,3 +61,11 @@ revoke all on public.bridge_users, public.bridge_credentials,
   public.bridge_guild_access, public.bridge_channel_access
   from anon, authenticated;
 -- No anon/authenticated policies: only the trusted backend's service role may access these tables.
+
+-- Explicitly preserve server-side PostgREST access when auto-exposure is disabled.
+-- No table privileges are granted to anon or authenticated clients.
+grant usage on schema public to service_role;
+grant select, insert, update, delete on
+  public.bridge_users, public.bridge_credentials, public.bridge_guilds,
+  public.bridge_channels, public.bridge_guild_access, public.bridge_channel_access
+to service_role;
