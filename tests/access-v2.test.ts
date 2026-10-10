@@ -92,3 +92,25 @@ test("partial DB configuration is rejected instead of silently falling back", ()
     if(beforeKey===undefined) delete process.env.BRIDGE_SUPABASE_SERVICE_ROLE_KEY; else process.env.BRIDGE_SUPABASE_SERVICE_ROLE_KEY=beforeKey;
   }
 });
+
+test("personal-auth-only mode rejects shared bearer and legacy OAuth fallback", async () => {
+  const previous={flag:process.env.BRIDGE_PERSONAL_AUTH_ONLY,shared:process.env.MCP_SHARED_SECRET};
+  process.env.BRIDGE_PERSONAL_AUTH_ONLY="true";
+  process.env.MCP_SHARED_SECRET="legacy-secret";
+  try {
+    assert.equal(await principalFromMcpRequest(new Request("https://example.test/mcp",{
+      headers:{Authorization:"Bearer legacy-secret"},
+    }),fakeStore()),null);
+    assert.deepEqual(await principalFromMcpRequest(new Request("https://example.test/mcp",{
+      headers:{Authorization:"Bearer "+key},
+    }),fakeStore()),principal);
+    assert.equal(await principalFromMcpRequest(new Request("https://example.test/mcp",{
+      headers:{Authorization:"Bearer gya.fake.fake"},
+    }),fakeStore()),null);
+  }finally{
+    if(previous.flag===undefined)delete process.env.BRIDGE_PERSONAL_AUTH_ONLY;
+    else process.env.BRIDGE_PERSONAL_AUTH_ONLY=previous.flag;
+    if(previous.shared===undefined)delete process.env.MCP_SHARED_SECRET;
+    else process.env.MCP_SHARED_SECRET=previous.shared;
+  }
+});
