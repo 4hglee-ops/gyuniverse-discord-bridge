@@ -9,6 +9,19 @@ import {
   type DecisionBaseline,
 } from "./decision-baseline.js";
 
+const EMPTY_BASELINE: DecisionBaseline = {
+  version: "unconfigured-v2",
+  updatedAt: "1970-01-01T00:00:00.000Z",
+  sourceOfTruth: "No guild-scoped baseline configured",
+  policy: {
+    preserveUntilSuperseded: true,
+    recentSilenceDoesNotRemoveDecision: true,
+    newerMessageAloneDoesNotSupersede: true,
+  },
+  currentDecisions: [],
+  openDecisions: [],
+};
+
 const evidenceRules = [
   "얘기했다 ≠ 결정했다. 한 사람의 제안만으로 팀 결정을 확정하지 않는다.",
   "하겠다 ≠ 완료했다. 완료 언급은 결과물 또는 강한 완료 근거가 있을 때만 done으로 올린다.",
@@ -127,6 +140,8 @@ export interface TeamBriefContextOptions {
   guildId: string;
   guildName: string;
   channelIds?: string[];
+  allowedChannelIds?: readonly string[];
+  includeLegacyBaseline?: boolean;
   since?: string;
   perChannelLimit?: number;
 }
@@ -146,7 +161,7 @@ export async function createTeamBriefContext(
   return {
     mode: "team-brief",
     generatedAt: new Date().toISOString(),
-    decisionBaseline: DECISION_BASELINE,
+    decisionBaseline: options.includeLegacyBaseline === false ? EMPTY_BASELINE : DECISION_BASELINE,
     snapshot,
     contract: TEAM_BRIEF_CONTRACT,
   };
@@ -169,7 +184,7 @@ export async function createDecisionLedgerContext(
   return {
     mode: "decision-ledger",
     generatedAt: new Date().toISOString(),
-    baseline: DECISION_BASELINE,
+    baseline: options.includeLegacyBaseline === false ? EMPTY_BASELINE : DECISION_BASELINE,
     snapshot,
     contract: DECISION_LEDGER_CONTRACT,
   };
@@ -180,6 +195,8 @@ export interface TeamDeltaContextOptions {
   guildId: string;
   guildName: string;
   channelIds?: string[];
+  allowedChannelIds?: readonly string[];
+  includeLegacyBaseline?: boolean;
   since?: string;
   lookbackHours?: number;
   perChannelLimit?: number;
@@ -222,7 +239,7 @@ export async function createTeamDeltaContext(
   return {
     mode: "delta-brief",
     generatedAt: new Date().toISOString(),
-    decisionBaseline: DECISION_BASELINE,
+    decisionBaseline: options.includeLegacyBaseline === false ? EMPTY_BASELINE : DECISION_BASELINE,
     window: {
       since: resolvedSince,
       sinceDefaulted: since === undefined,

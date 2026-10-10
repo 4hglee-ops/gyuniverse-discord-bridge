@@ -1,5 +1,6 @@
 import { createTeamBriefContext } from "../../../src/context/team-context-workflows.js";
-import { requireGptActionsAuth } from "../../../src/gpt/actions-auth.js";
+import { authorizedGptReader } from "../../../src/gpt/actions-auth.js";
+import { AccessDeniedError, ScopeSelectionError } from "../../../src/access/types.js";
 import { createGptActionsContext } from "../../../src/gpt/actions-context.js";
 
 function parseChannelIds(value: string | null): string[] | undefined {
@@ -32,8 +33,8 @@ function parsePerChannelLimit(value: string | null): number {
 }
 
 export async function GET(request: Request): Promise<Response> {
-  const authError = requireGptActionsAuth(request);
-  if (authError) return authError;
+  const reader = await authorizedGptReader(request);
+  if (reader instanceof Response) return reader;
 
   try {
     const url = new URL(request.url);
@@ -43,20 +44,18 @@ export async function GET(request: Request): Promise<Response> {
       url.searchParams.get("perChannelLimit"),
     );
 
-    const { rest, guildId, guildName } = createGptActionsContext();
-    const result = await createTeamBriefContext({
-      rest,
-      guildId,
-      guildName,
-      channelIds,
-      since,
-      perChannelLimit,
-    });
+    const result = await reader.context("brief", {channelIds, since, perChannelLimit, serverId: url.searchParams.get("serverId") ?? undefined});
 
     return Response.json(result, {
       headers: { "Cache-Control": "no-store" },
     });
   } catch (error) {
+    if (error instanceof AccessDeniedError) {
+      return Response.json({error:"Channel or server not found or not accessible."},{status:404});
+    }
+    if (error instanceof ScopeSelectionError) {
+      return Response.json({error:"serverId is required for multi-server access."},{status:400});
+    }
     if (
       error instanceof Error &&
       (

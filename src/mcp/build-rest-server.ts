@@ -1,4 +1,6 @@
 ﻿import { z } from "zod";
+import { ScopedDiscordReader } from "../access/discord-reader.js";
+import { legacyScope } from "../access/scope.js";
 import { McpServer } from "@modelcontextprotocol/server";
 import type { REST } from "discord.js";
 
@@ -22,6 +24,7 @@ export interface RestMcpServerOptions {
   rest: REST;
   guildId: string;
   guildName: string;
+  reader?: ScopedDiscordReader;
 }
 
 const stateItemSchema = z.object({
@@ -50,6 +53,7 @@ export function buildRestMcpServer(
   options: RestMcpServerOptions,
 ): McpServer {
   const { rest, guildId, guildName } = options;
+  const reader = options.reader ?? new ScopedDiscordReader(rest, legacyScope(guildId, guildName));
 
   const server = new McpServer({
     name: "gyuniverse-discord-bridge",
@@ -57,9 +61,21 @@ export function buildRestMcpServer(
   });
 
   server.registerTool(
+    "list_discord_servers",
+    {
+      description: "현재 사용자에게 허용된 Discord 서버 목록을 조회합니다.",
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    },
+    async () => ({
+      content: [{ type: "text", text: JSON.stringify(reader.listServers(), null, 2) }],
+    }),
+  );
+
+  server.registerTool(
     "list_discord_channels",
     {
       description: "Discord 서버에서 봇이 접근 가능한 텍스트 채널 목록을 조회합니다.",
+      inputSchema: z.object({ serverId: z.string().min(1).optional() }),
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -67,9 +83,8 @@ export function buildRestMcpServer(
         openWorldHint: true,
       },
     },
-    async () => {
-      const channels = await listTextChannelsRest(rest, guildId);
-      const result = channels.map((channel) => ({ ...channel, guildName }));
+    async ({ serverId }) => {
+      const result = await reader.listChannels(serverId);
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -79,6 +94,7 @@ export function buildRestMcpServer(
     {
       description: "지정한 Discord 텍스트 채널의 최근 메시지를 조회합니다.",
       inputSchema: z.object({
+        serverId: z.string().min(1).optional(),
         channelId: z.string().min(1),
         limit: z.number().int().min(1).max(100).default(20),
       }),
@@ -89,21 +105,8 @@ export function buildRestMcpServer(
         openWorldHint: true,
       },
     },
-    async ({ channelId, limit }) => {
-      const channels = await listTextChannelsRest(rest, guildId);
-      const channel = channels.find((item) => item.id === channelId);
-      if (!channel) {
-        throw new Error(`접근 가능한 Discord 텍스트 채널을 찾을 수 없습니다: ${channelId}`);
-      }
-      const discordMessages = await getRecentMessagesRest(rest, channelId, limit);
-      const bridgeMessages = discordMessages.map((message) =>
-        toBridgeMessageRest(message, {
-          guildId,
-          guildName,
-          channelId,
-          channelName: channel.name,
-        }),
-      );
+    async ({ serverId, channelId, limit }) => {
+      const bridgeMessages = await reader.recentMessages(channelId, limit, serverId);
       return { content: [{ type: "text", text: JSON.stringify(bridgeMessages, null, 2) }] };
     },
   );
@@ -114,6 +117,7 @@ export function buildRestMcpServer(
       description:
         "여러 Discord 채널의 최근 메시지를 하나의 Evidence Pack으로 모읍니다. 의미 판정은 하지 않습니다.",
       inputSchema: z.object({
+        serverId: z.string().min(1).optional(),
         channelIds: z.array(z.string().min(1)).max(20).optional(),
         since: z.string().optional(),
         perChannelLimit: z.number().int().min(1).max(100).default(50),
@@ -125,15 +129,8 @@ export function buildRestMcpServer(
         openWorldHint: true,
       },
     },
-    async ({ channelIds, since, perChannelLimit }) => {
-      const result = await createTeamContextSnapshot({
-        rest,
-        guildId,
-        guildName,
-        channelIds,
-        since,
-        perChannelLimit,
-      });
+    async ({ serverId, channelIds, since, perChannelLimit }) => {
+      const result = await reader.snapshot({ serverId, channelIds, since, perChannelLimit });
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -144,6 +141,7 @@ export function buildRestMcpServer(
       description:
         "현재 팀 상태 브리핑을 위한 Decision Baseline + Snapshot + Team Brief Contract를 반환합니다.",
       inputSchema: z.object({
+        serverId: z.string().min(1).optional(),
         channelIds: z.array(z.string().min(1)).max(20).optional(),
         since: z.string().optional(),
         perChannelLimit: z.number().int().min(1).max(100).default(50),
@@ -155,15 +153,8 @@ export function buildRestMcpServer(
         openWorldHint: true,
       },
     },
-    async ({ channelIds, since, perChannelLimit }) => {
-      const result = await createTeamBriefContext({
-        rest,
-        guildId,
-        guildName,
-        channelIds,
-        since,
-        perChannelLimit,
-      });
+    async ({ serverId, channelIds, since, perChannelLimit }) => {
+      const result = await reader.context("brief", { serverId, channelIds, since, perChannelLimit });
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -174,6 +165,7 @@ export function buildRestMcpServer(
       description:
         "Decision Baseline, 열린 결정 후보, 최신 Discord Snapshot과 Decision Ledger Contract를 반환합니다.",
       inputSchema: z.object({
+        serverId: z.string().min(1).optional(),
         channelIds: z.array(z.string().min(1)).max(20).optional(),
         since: z.string().optional(),
         perChannelLimit: z.number().int().min(1).max(100).default(50),
@@ -185,15 +177,8 @@ export function buildRestMcpServer(
         openWorldHint: true,
       },
     },
-    async ({ channelIds, since, perChannelLimit }) => {
-      const result = await createDecisionLedgerContext({
-        rest,
-        guildId,
-        guildName,
-        channelIds,
-        since,
-        perChannelLimit,
-      });
+    async ({ serverId, channelIds, since, perChannelLimit }) => {
+      const result = await reader.context("ledger", { serverId, channelIds, since, perChannelLimit });
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -204,6 +189,7 @@ export function buildRestMcpServer(
       description:
         "기준 시각 이후 변화 분석용 Decision Baseline + Snapshot + Delta Brief Contract를 반환합니다.",
       inputSchema: z.object({
+        serverId: z.string().min(1).optional(),
         channelIds: z.array(z.string().min(1)).max(20).optional(),
         since: z.string().optional(),
         lookbackHours: z.number().int().min(1).max(168).default(24),
@@ -216,16 +202,8 @@ export function buildRestMcpServer(
         openWorldHint: true,
       },
     },
-    async ({ channelIds, since, lookbackHours, perChannelLimit }) => {
-      const result = await createTeamDeltaContext({
-        rest,
-        guildId,
-        guildName,
-        channelIds,
-        since,
-        lookbackHours,
-        perChannelLimit,
-      });
+    async ({ serverId, channelIds, since, lookbackHours, perChannelLimit }) => {
+      const result = await reader.context("delta", { serverId, channelIds, since, lookbackHours, perChannelLimit });
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -289,6 +267,7 @@ export function buildRestMcpServer(
       description:
         "Discord 메시지 과거 검색. 결정 이유, 변경 이력, 특정 키워드/기간/작성자 Evidence 보완에 사용합니다.",
       inputSchema: z.object({
+        serverId: z.string().min(1).optional(),
         query: z.string().max(1024).optional(),
         channelId: z.string().min(1).optional(),
         authorId: z.string().min(1).optional(),
@@ -304,52 +283,9 @@ export function buildRestMcpServer(
         openWorldHint: true,
       },
     },
-    async ({ query, channelId, authorId, after, before, limit, sort }) => {
-      const channels = await listTextChannelsRest(rest, guildId);
-      const channelById = new Map(channels.map((channel) => [channel.id, channel]));
-      if (channelId && !channelById.has(channelId)) {
-        throw new Error(`접근 가능한 Discord 텍스트 채널을 찾을 수 없습니다: ${channelId}`);
-      }
-      const search = await searchGuildMessagesRest(rest, guildId, {
-        content: query,
-        channelIds: channelId ? [channelId] : channels.map((channel) => channel.id),
-        authorIds: authorId ? [authorId] : undefined,
-        after,
-        before,
-        limit,
-        sort,
-      });
-      const bridgeMessages = search.messages.flatMap((message) => {
-        const channel = channelById.get(message.channel_id);
-        if (!channel) return [];
-        return [
-          toBridgeMessageRest(message, {
-            guildId,
-            guildName,
-            channelId: channel.id,
-            channelName: channel.name,
-          }),
-        ];
-      });
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              {
-                totalResults: search.totalResults,
-                returnedResults: bridgeMessages.length,
-                searchMode: search.searchMode,
-                historyComplete: search.historyComplete,
-                scannedMessages: search.scannedMessages ?? null,
-                messages: bridgeMessages,
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-      };
+    async ({ serverId, query, channelId, authorId, after, before, limit, sort }) => {
+      const result = await reader.search({serverId, query, channelId, authorId, after, before, limit, sort});
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     },
   );
 

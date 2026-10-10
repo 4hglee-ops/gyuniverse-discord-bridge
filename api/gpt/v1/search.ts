@@ -5,7 +5,8 @@ import {
   searchGuildMessagesRest,
   type DiscordMessageSearchSort,
 } from "../../../src/discord/rest-search.js";
-import { requireGptActionsAuth } from "../../../src/gpt/actions-auth.js";
+import { authorizedGptReader } from "../../../src/gpt/actions-auth.js";
+import { AccessDeniedError, ScopeSelectionError } from "../../../src/access/types.js";
 import { createGptActionsContext } from "../../../src/gpt/actions-context.js";
 
 function parseLimit(value: string | null): number {
@@ -30,8 +31,8 @@ function parseSort(value: string | null): DiscordMessageSearchSort {
 }
 
 export async function GET(request: Request): Promise<Response> {
-  const authError = requireGptActionsAuth(request);
-  if (authError) return authError;
+  const reader = await authorizedGptReader(request);
+  if (reader instanceof Response) return reader;
 
   try {
     const url = new URL(request.url);
@@ -43,61 +44,18 @@ export async function GET(request: Request): Promise<Response> {
     const limit = parseLimit(url.searchParams.get("limit"));
     const sort = parseSort(url.searchParams.get("sort"));
 
-    const { rest, guildId, guildName } = createGptActionsContext();
-    const channels = await listTextChannelsRest(rest, guildId);
-    const channelById = new Map(
-      channels.map((channel) => [channel.id, channel]),
-    );
-
-    if (channelId && !channelById.has(channelId)) {
-      return Response.json(
-        { error: "Channel was not found or is not accessible by the bot." },
-        { status: 404 },
-      );
-    }
-
-    const search = await searchGuildMessagesRest(rest, guildId, {
-      content: query,
-      channelIds: channelId
-        ? [channelId]
-        : channels.map((channel) => channel.id),
-      authorIds: authorId ? [authorId] : undefined,
-      after,
-      before,
-      limit,
-      sort,
+    const result = await reader.search({
+      query, channelId, authorId, after, before, limit, sort,
+      serverId: url.searchParams.get("serverId") ?? undefined,
     });
-
-    const messages = search.messages.flatMap((message) => {
-      const channel = channelById.get(message.channel_id);
-      if (!channel) return [];
-
-      return [
-        toBridgeMessageRest(message, {
-          guildId,
-          guildName,
-          channelId: channel.id,
-          channelName: channel.name,
-        }),
-      ];
-    });
-
-    return Response.json(
-      {
-        totalResults: search.totalResults,
-        returnedResults: messages.length,
-        searchMode: search.searchMode,
-        historyComplete: search.historyComplete,
-        scannedMessages: search.scannedMessages ?? null,
-        messages,
-      },
-      {
-        headers: {
-          "Cache-Control": "no-store",
-        },
-      },
-    );
+    return Response.json(result, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
+    if (error instanceof AccessDeniedError) {
+      return Response.json({error:"Channel or server not found or not accessible."},{status:404});
+    }
+    if (error instanceof ScopeSelectionError) {
+      return Response.json({error:"serverId is required for multi-server access."},{status:400});
+    }
     if (error instanceof DiscordSearchIndexPendingError) {
       return Response.json(
         {

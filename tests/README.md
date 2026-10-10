@@ -32,3 +32,60 @@ Discord Bot token, 운영 OAuth Secret, GPT Actions API Key 없이 실행됩니�
 - 검색·Snapshot·Decision Context의 서버 간 데이터 격리
 - 신규 채널 기본 차단과 변경 즉시 token 접근 차단
 - guild-scoped Decision Baseline 및 Checkpoint 호환성
+
+## v2 Admin API (개발 중)
+
+관리 작업은 `POST /api/admin/v1/actions`와 전용 `BRIDGE_ADMIN_API_KEY`로만 수행합니다.
+기존 `MCP_SHARED_SECRET` 또는 `GPT_ACTIONS_API_KEY`는 관리자 API에 사용할 수 없습니다.
+관리 API에는 서버 측 `BRIDGE_SUPABASE_SERVICE_ROLE_KEY`가 필요합니다.
+
+지원 작업: `registerGuild`, `syncGuild`, `createUser`, `setAccess`, `issueCredential`, `revokeCredential`.
+개인 키는 생성 시 한 번만 반환되고 DB에는 SHA-256 해시만 저장됩니다.
+
+DB 마이그레이션은 반드시 `001_bridge_acl.sql` 다음에 `002_bridge_admin.sql`을 적용해야 합니다.
+현재 실제 운영 DB에는 적용하지 않았습니다. 관리자 UI는 별도 작업입니다.
+
+## v2 관리 콘솔
+
+관리 콘솔: `/api/admin/v1/ui` (개발 브랜치 전용, Production 미배포)
+
+추가 환경변수:
+- `BRIDGE_ADMIN_UI_PASSWORD`: 로그인 전용 비밀번호, 32자 이상
+- `BRIDGE_ADMIN_SESSION_SECRET`: HttpOnly 세션 HMAC 서명 전용, 32자 이상
+- `BRIDGE_ADMIN_API_KEY`: 프로그램 간 관리자 API 전용, 32자 이상
+- `BRIDGE_SUPABASE_URL` / `BRIDGE_SUPABASE_SERVICE_ROLE_KEY`: 서버 전용 DB 자격증명
+
+UI와 관리자 API는 서로 다른 자격증명을 사용합니다.
+브라우저 관리 세션은 2시간 유효하며, HttpOnly / SameSite=Strict / HTTPS Secure 쿠키,
+동일 출처(Origin) 검사 및 CSRF 헤더를 사용합니다.
+로그아웃은 브라우저 쿠키를 삭제하지만 이미 발급된 서명 세션을 서버에서 개별 폐기하지는 않습니다.
+관리 UI 비밀번호와 HMAC 서명키는 반드시 다른 값으로 설정합니다.
+
+관리 콘솔에는 서버 등록·채널 동기화, 사용자 생성, 권한 모드/채널 체크박스,
+개인 키 발급·폐기, 최근 감사 로그가 포함됩니다.
+개인 키는 한 번 표시되며 기존 팀 공용 토큰을 화면에서 취급하지 않습니다.
+
+마이그레이션 `001_bridge_acl.sql` 및 `002_bridge_admin.sql`은
+아직 실제 Bridge 데이터베이스에서 실행 검증하지 않았습니다.
+관리 콘솔을 Production에 배포하기 전 테스트 DB에 마이그레이션을 적용하고,
+관리 RPC의 원자성·권한 회수·신규 채널 기본 차단을 검증해야 합니다.
+
+## 실제 개발 DB 검증 (2026-10-11 KST)
+
+대상: `gyuniverse-discord-bridge-dev` (Supabase Seoul, `lldnmojfjtwgblrxmzaa`).
+
+적용 완료:
+1. `bridge_acl_baseline` → `db/migrations/001_bridge_acl.sql`
+2. `bridge_admin_operations` → `db/migrations/002_bridge_admin.sql`
+3. `restrict_rls_trigger_function_execution` → `db/migrations/003_restrict_rls_trigger.sql`과 동일한 권한 조치
+
+실제 PostgreSQL 트랜잭션 안에서 관리자 사용자 생성, Guild A/B 등록,
+선택 채널 접근 허용, 다른 Guild 채널 권한 거부, 제거된 채널의 접근 권한
+자동 폐기를 확인했습니다. `ROLLBACK` 후 사용자·서버·채널·감사 로그는 0건입니다.
+
+보안 Advisor: Bridge 테이블 7개에 RLS가 활성화되고 정책은 없다는 INFO
+메시지만 남아 있습니다. 이 테이블은 서비스 역할만 조회/변경하도록 의도했습니다.
+공개 역할의 관리자 SECURITY DEFINER 함수 실행 권한은 없음이 검증됐습니다.
+
+미검증: 실 Bot과 관리자 UI의 실제 네트워크 요청 및 개인 API Key로
+PostgREST를 호출하는 통합 테스트. 본 마이그레이션은 개발 DB에만 적용됐습니다.

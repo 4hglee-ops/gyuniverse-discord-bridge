@@ -1,13 +1,12 @@
 import { createMcpHandler } from "@modelcontextprotocol/server";
+import { principalFromMcpRequest } from "../src/access/identity.js";
+import { configuredAccessStore } from "../src/access/store.js";
+import { scopeForPrincipal } from "../src/access/scope.js";
+import { ScopedDiscordReader } from "../src/access/discord-reader.js";
 
 import { createDiscordRestClient } from "../src/discord/rest-client.js";
 import { buildRestMcpServer } from "../src/mcp/build-rest-server.js";
-import {
-  bearerToken,
-  OAUTH_SCOPE,
-  publicBaseUrl,
-  validOAuthAccessToken,
-} from "../src/oauth/stateless.js";
+import { OAUTH_SCOPE, publicBaseUrl } from "../src/oauth/stateless.js";
 
 function requiredEnv(name: string): string | null {
   const value = process.env[name]?.trim();
@@ -36,20 +35,25 @@ async function handle(request: Request): Promise<Response> {
     });
   }
 
-  const presentedToken = bearerToken(request);
-  if (!presentedToken) return unauthorized();
+  let reader: ScopedDiscordReader;
+  try {
+    const store = configuredAccessStore();
+    const principal = await principalFromMcpRequest(request, store);
+    if (!principal) return unauthorized();
+    const scope = await scopeForPrincipal(principal, store, guildId, guildName);
+    const rest = createDiscordRestClient(token);
+    reader = new ScopedDiscordReader(rest, scope);
+  } catch (error) {
+    console.error("MCP authorization failed", error);
+    return new Response("Authorization unavailable", {status: 503});
+  }
 
-  const sharedSecretAccepted = presentedToken === sharedSecret;
-  const oauthAccepted = sharedSecretAccepted ? false : await validOAuthAccessToken(presentedToken);
-
-  if (!sharedSecretAccepted && !oauthAccepted) return unauthorized();
-
-  const rest = createDiscordRestClient(token);
   const mcpHandler = createMcpHandler(() =>
     buildRestMcpServer({
-      rest,
+      rest: reader.rest,
       guildId,
       guildName,
+      reader,
     }),
   );
 
