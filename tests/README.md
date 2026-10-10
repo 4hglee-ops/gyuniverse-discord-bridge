@@ -69,3 +69,23 @@ UI와 관리자 API는 서로 다른 자격증명을 사용합니다.
 아직 실제 Bridge 데이터베이스에서 실행 검증하지 않았습니다.
 관리 콘솔을 Production에 배포하기 전 테스트 DB에 마이그레이션을 적용하고,
 관리 RPC의 원자성·권한 회수·신규 채널 기본 차단을 검증해야 합니다.
+
+## 실제 개발 DB 검증 (2026-10-11 KST)
+
+대상: `gyuniverse-discord-bridge-dev` (Supabase Seoul, `lldnmojfjtwgblrxmzaa`).
+
+적용 완료:
+1. `bridge_acl_baseline` → `db/migrations/001_bridge_acl.sql`
+2. `bridge_admin_operations` → `db/migrations/002_bridge_admin.sql`
+3. `restrict_rls_trigger_function_execution` → `db/migrations/003_restrict_rls_trigger.sql`과 동일한 권한 조치
+
+실제 PostgreSQL 트랜잭션 안에서 관리자 사용자 생성, Guild A/B 등록,
+선택 채널 접근 허용, 다른 Guild 채널 권한 거부, 제거된 채널의 접근 권한
+자동 폐기를 확인했습니다. `ROLLBACK` 후 사용자·서버·채널·감사 로그는 0건입니다.
+
+보안 Advisor: Bridge 테이블 7개에 RLS가 활성화되고 정책은 없다는 INFO
+메시지만 남아 있습니다. 이 테이블은 서비스 역할만 조회/변경하도록 의도했습니다.
+공개 역할의 관리자 SECURITY DEFINER 함수 실행 권한은 없음이 검증됐습니다.
+
+미검증: 실 Bot과 관리자 UI의 실제 네트워크 요청 및 개인 API Key로
+PostgREST를 호출하는 통합 테스트. 본 마이그레이션은 개발 DB에만 적용됐습니다.
