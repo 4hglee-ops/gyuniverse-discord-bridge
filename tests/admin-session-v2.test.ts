@@ -14,6 +14,10 @@ test("admin UI has isolated CSP and no admin credential",async()=>{
  assert.match(body,/Gyuniverse Bridge/);
  assert.match(body,/사용자 및 읽기 권한/);
  assert.match(csp,/script-src 'nonce-/);
+ const nonce=csp.match(/script-src 'nonce-([^']+)'/)?.[1];
+ assert.ok(nonce);
+ assert.ok(body.includes('script nonce="'+nonce+'"'));
+ assert.equal(body.includes("__GDB_SCRIPT_NONCE__"),false);
  assert.equal(body.includes("BRIDGE_ADMIN_API_KEY="),false);
 });
 test("admin UI uses signed HttpOnly session and same-origin CSRF",async()=>{
