@@ -224,3 +224,7 @@ grant execute on function public.bridge_set_access(uuid,text,text,text[]) to ser
 grant execute on function public.bridge_create_user(text,text) to service_role;
 grant execute on function public.bridge_issue_credential(uuid,text) to service_role;
 grant execute on function public.bridge_revoke_credential(uuid) to service_role;
+
+-- Ensure management reads and audit inserts work independently of default grants.
+grant select, insert, update, delete on public.bridge_audit_logs to service_role;
+grant usage, select on sequence public.bridge_audit_logs_id_seq to service_role;
