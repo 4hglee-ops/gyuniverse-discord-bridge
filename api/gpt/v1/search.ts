@@ -43,9 +43,10 @@ export async function GET(request: Request): Promise<Response> {
     const before = url.searchParams.get("before")?.trim() || undefined;
     const limit = parseLimit(url.searchParams.get("limit"));
     const sort = parseSort(url.searchParams.get("sort"));
+    const includeThreads = url.searchParams.get("includeThreads") === "true";
 
     const result = await reader.search({
-      query, channelId, authorId, after, before, limit, sort,
+      query, channelId, authorId, after, before, limit, sort, includeThreads,
       serverId: url.searchParams.get("serverId") ?? undefined,
     });
     return Response.json(result, { headers: { "Cache-Control": "no-store" } });
