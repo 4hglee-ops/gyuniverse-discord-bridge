@@ -108,6 +108,46 @@ export function GET(request: Request): Response {
           },
         },
       },
+      "/api/gpt/v1/threads": {
+        get: {
+          operationId: "listChannelThreads",
+          summary: "List active and archived threads in an allowed channel",
+          parameters: [
+            {name:"channelId",in:"query",required:true,schema:{type:"string"}},
+            {name:"serverId",in:"query",required:false,schema:{type:"string"}},
+            {name:"status",in:"query",required:false,schema:{type:"string",enum:["active","archived","all"],default:"all"}},
+            {name:"archiveLimit",in:"query",required:false,schema:{type:"integer",minimum:1,maximum:100,default:25}},
+            {name:"beforePublic",in:"query",required:false,schema:{type:"string"}},
+            {name:"beforePrivate",in:"query",required:false,schema:{type:"string"}},
+          ],
+          responses:{
+            "200":{description:"Accessible threads and archive pagination cursors",content:{"application/json":{schema:{$ref:"#/components/schemas/ThreadListResponse"}}}},
+            "400":{$ref:"#/components/responses/BadRequest"},
+            "401":{$ref:"#/components/responses/Unauthorized"},
+            "404":{$ref:"#/components/responses/NotFound"},
+          },
+        },
+      },
+      "/api/gpt/v1/thread-messages": {
+        get:{
+          operationId:"getDiscordThreadMessages",
+          summary:"Read thread messages with pagination and optional starter",
+          parameters:[
+            {name:"parentChannelId",in:"query",required:true,schema:{type:"string"}},
+            {name:"threadId",in:"query",required:true,schema:{type:"string"}},
+            {name:"serverId",in:"query",required:false,schema:{type:"string"}},
+            {name:"limit",in:"query",required:false,schema:{type:"integer",minimum:1,maximum:100,default:50}},
+            {name:"before",in:"query",required:false,schema:{type:"string"}},
+            {name:"includeStarter",in:"query",required:false,schema:{type:"boolean",default:true}},
+          ],
+          responses:{
+            "200":{description:"Thread messages and pagination",content:{"application/json":{schema:{$ref:"#/components/schemas/ThreadMessagesResponse"}}}},
+            "400":{$ref:"#/components/responses/BadRequest"},
+            "401":{$ref:"#/components/responses/Unauthorized"},
+            "404":{$ref:"#/components/responses/NotFound"},
+          },
+        },
+      },
       "/api/gpt/v1/context-snapshot": {
         get: {
           operationId: "getTeamContextSnapshot",
@@ -617,6 +657,36 @@ export function GET(request: Request): Response {
             diff: { $ref: "#/components/schemas/TeamStateDiff" },
           },
         },
+        ThreadSummary: {
+          type:"object",
+          required:["id","name","parentChannelId","serverId","isPrivate","archived","archiveTimestamp","messageCount","lastMessageId"],
+          properties:{
+            id:{type:"string"},name:{type:"string"},parentChannelId:{type:"string"},serverId:{type:"string"},
+            isPrivate:{type:"boolean"},archived:{type:"boolean"},archiveTimestamp:{type:["string","null"]},
+            messageCount:{type:["integer","null"]},lastMessageId:{type:["string","null"]},
+          },
+        },
+        ThreadListResponse: {
+          type:"object",
+          required:["parentChannel","threads","hasMorePublic","hasMorePrivate","nextBeforePublic","nextBeforePrivate"],
+          properties:{
+            parentChannel:{$ref:"#/components/schemas/Channel"},
+            threads:{type:"array",items:{$ref:"#/components/schemas/ThreadSummary"}},
+            hasMorePublic:{type:"boolean"},hasMorePrivate:{type:"boolean"},
+            nextBeforePublic:{type:["string","null"]},nextBeforePrivate:{type:["string","null"]},
+          },
+        },
+        ThreadMessagesResponse: {
+          type:"object",
+          required:["thread","parentChannel","messages","starterMessage","nextBefore","historyComplete"],
+          properties:{
+            thread:{$ref:"#/components/schemas/ThreadSummary"},
+            parentChannel:{$ref:"#/components/schemas/Channel"},
+            messages:{type:"array",items:{$ref:"#/components/schemas/BridgeMessage"}},
+            starterMessage:{anyOf:[{$ref:"#/components/schemas/BridgeMessage"},{type:"null"}]},
+            nextBefore:{type:["string","null"]},historyComplete:{type:"boolean"},
+          },
+        },
         SearchResult: {
           type: "object",
           required: ["totalResults", "returnedResults", "searchMode", "historyComplete", "scannedMessages", "messages"],
@@ -627,6 +697,9 @@ export function GET(request: Request): Response {
             historyComplete: { type: "boolean" },
             scannedMessages: { type: ["integer", "null"] },
             messages: { type: "array", items: { $ref: "#/components/schemas/BridgeMessage" } },
+            threadSearch:{type:"object",properties:{
+              enabled:{type:"boolean"},threadsScanned:{type:"integer"},scopeComplete:{type:"boolean"},
+            }},
           },
         },
         Error: {
