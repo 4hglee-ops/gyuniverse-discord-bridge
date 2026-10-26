@@ -132,15 +132,23 @@ export class ScopedDiscordReader {
     let threadScanComplete = true;
     let threadsScanned = 0;
     if (options.includeThreads) {
-      for (const parent of channels.slice(0, 10)) {
+      const parents = channels.slice(0, 10);
+      for (const parent of parents) {
         const page = await listChannelThreadsRest(this.rest, guild.id, parent.id, { archiveLimit: 25 });
         for (const thread of page.threads) {
+          if (byId.size >= 500) { threadScanComplete = false; break; }
           byId.set(thread.id, { id: thread.id, name: thread.name, guildId: guild.id });
           threadsScanned++;
         }
         if (page.hasMorePublic || page.hasMorePrivate) threadScanComplete = false;
       }
-      if (channels.length > 10) threadScanComplete = false;
+      if (channels.length > 10 || byId.size >= 500) threadScanComplete = false;
+    }
+    if (byId.size > 500) {
+      // Discord search accepts at most 500 channel IDs.
+      const keep = new Set([...byId.keys()].slice(0, 500));
+      for (const key of byId.keys()) if (!keep.has(key)) byId.delete(key);
+      threadScanComplete = false;
     }
     const search = await searchGuildMessagesRest(this.rest, guild.id, {
       content: options.query,
