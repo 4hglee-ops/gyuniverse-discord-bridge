@@ -113,7 +113,7 @@ export class ScopedDiscordReader {
   async search(options: {
     serverId?: string; channelId?: string; query?: string;
     authorId?: string; after?: string; before?: string;
-    limit?: number; sort?: DiscordMessageSearchSort;
+    limit?: number; sort?: DiscordMessageSearchSort; includeThreads?: boolean;
   }) {
     const resolved = options.channelId
       ? await resolveReadableChannel(this.rest, this.scope, options.channelId, options.serverId)
@@ -129,9 +129,22 @@ export class ScopedDiscordReader {
       };
     }
     const byId = new Map(channels.map((channel) => [channel.id, channel]));
+    let threadScanComplete = true;
+    let threadsScanned = 0;
+    if (options.includeThreads) {
+      for (const parent of channels.slice(0, 10)) {
+        const page = await listChannelThreadsRest(this.rest, guild.id, parent.id, { archiveLimit: 25 });
+        for (const thread of page.threads) {
+          byId.set(thread.id, { id: thread.id, name: thread.name, guildId: guild.id });
+          threadsScanned++;
+        }
+        if (page.hasMorePublic || page.hasMorePrivate) threadScanComplete = false;
+      }
+      if (channels.length > 10) threadScanComplete = false;
+    }
     const search = await searchGuildMessagesRest(this.rest, guild.id, {
       content: options.query,
-      channelIds: channels.map((channel) => channel.id),
+      channelIds: [...byId.keys()],
       authorIds: options.authorId ? [options.authorId] : undefined,
       after: options.after, before: options.before,
       limit: options.limit, sort: options.sort,
@@ -146,8 +159,10 @@ export class ScopedDiscordReader {
     return {
       totalResults: messages.length === search.messages.length ? search.totalResults : messages.length,
       returnedResults: messages.length,
-      searchMode: search.searchMode, historyComplete: search.historyComplete,
+      searchMode: search.searchMode, historyComplete: search.historyComplete && threadScanComplete,
       scannedMessages: search.scannedMessages ?? null, messages,
+      threadSearch: { enabled: Boolean(options.includeThreads), threadsScanned,
+        scopeComplete: !options.includeThreads || threadScanComplete },
     };
   }
 
