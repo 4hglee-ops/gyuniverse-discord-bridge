@@ -317,6 +317,7 @@ export function buildRestMcpServer(
         before: z.string().optional(),
         limit: z.number().int().min(1).max(100).default(25),
         sort: z.enum(["newest", "oldest", "relevance"]).default("newest"),
+        includeThreads: z.boolean().default(false),
       }),
       annotations: {
         readOnlyHint: true,
@@ -325,8 +326,8 @@ export function buildRestMcpServer(
         openWorldHint: true,
       },
     },
-    async ({ serverId, query, channelId, authorId, after, before, limit, sort }) => {
-      const result = await reader.search({serverId, query, channelId, authorId, after, before, limit, sort});
+    async ({ serverId, query, channelId, authorId, after, before, limit, sort, includeThreads }) => {
+      const result = await reader.search({serverId, query, channelId, authorId, after, before, limit, sort, includeThreads});
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     },
   );
