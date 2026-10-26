@@ -1,14 +1,16 @@
-name: V1 regression
+name: Bridge regression (v1 + v2 threads)
 
 on:
   pull_request:
     branches:
       - develop
       - main
+      - 'feat/v2-auth-acl'
   push:
     branches:
       - develop
       - main
+      - 'feat/v2-auth-acl'
   workflow_dispatch:
 
 permissions:
