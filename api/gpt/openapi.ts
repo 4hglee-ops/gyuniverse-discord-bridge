@@ -312,6 +312,7 @@ export function GET(request: Request): Response {
               required: false,
               schema: { type: "integer", minimum: 1, maximum: 100, default: 25 },
             },
+            { name: "includeThreads", in: "query", required: false, schema: { type: "boolean", default: false } },
             {
               name: "sort",
               in: "query",
