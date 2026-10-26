@@ -112,6 +112,48 @@ export function buildRestMcpServer(
   );
 
   server.registerTool(
+    "list_channel_threads",
+    {
+      description: "허용된 일반 텍스트 채널의 활성 및 보관 스레드를 조회합니다. 비공개 스레드는 봇이 참여한 것만 포함합니다.",
+      inputSchema: z.object({
+        serverId: z.string().min(1).optional(),
+        channelId: z.string().min(1),
+        status: z.enum(["active", "archived", "all"]).default("all"),
+        archiveLimit: z.number().int().min(1).max(100).default(25),
+        beforePublic: z.string().optional(),
+        beforePrivate: z.string().optional(),
+      }),
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    },
+    async ({ serverId, channelId, status, archiveLimit, beforePublic, beforePrivate }) => ({
+      content: [{ type: "text", text: JSON.stringify(
+        await reader.listThreads(channelId, { serverId, status, archiveLimit, beforePublic, beforePrivate }), null, 2,
+      ) }],
+    }),
+  );
+
+  server.registerTool(
+    "get_thread_messages",
+    {
+      description: "허용된 부모 채널에 속한 스레드 메시지를 페이지 단위로 조회하고 시작 메시지를 반환합니다.",
+      inputSchema: z.object({
+        serverId: z.string().min(1).optional(),
+        parentChannelId: z.string().min(1),
+        threadId: z.string().min(1),
+        limit: z.number().int().min(1).max(100).default(50),
+        before: z.string().optional(),
+        includeStarter: z.boolean().default(true),
+      }),
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    },
+    async ({ serverId, parentChannelId, threadId, limit, before, includeStarter }) => ({
+      content: [{ type: "text", text: JSON.stringify(
+        await reader.threadMessages(threadId, parentChannelId, { serverId, limit, before, includeStarter }), null, 2,
+      ) }],
+    }),
+  );
+
+  server.registerTool(
     "get_team_context_snapshot",
     {
       description:
@@ -275,6 +317,7 @@ export function buildRestMcpServer(
         before: z.string().optional(),
         limit: z.number().int().min(1).max(100).default(25),
         sort: z.enum(["newest", "oldest", "relevance"]).default("newest"),
+        includeThreads: z.boolean().default(false),
       }),
       annotations: {
         readOnlyHint: true,
@@ -283,8 +326,8 @@ export function buildRestMcpServer(
         openWorldHint: true,
       },
     },
-    async ({ serverId, query, channelId, authorId, after, before, limit, sort }) => {
-      const result = await reader.search({serverId, query, channelId, authorId, after, before, limit, sort});
+    async ({ serverId, query, channelId, authorId, after, before, limit, sort, includeThreads }) => {
+      const result = await reader.search({serverId, query, channelId, authorId, after, before, limit, sort, includeThreads});
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     },
   );

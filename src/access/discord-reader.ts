@@ -5,6 +5,7 @@ import { createTeamBriefContext, createDecisionLedgerContext, createTeamDeltaCon
 import { searchGuildMessagesRest, type DiscordMessageSearchSort } from "../discord/rest-search.js";
 import { AccessDeniedError, type AccessScope } from "./types.js";
 import { getRecentMessagesRest } from "../discord/rest-messages.js";
+import { listChannelThreadsRest, getThreadRest, getThreadMessagesPageRest, getThreadStarterMessageRest } from "../discord/rest-threads.js";
 import { toBridgeMessageRest } from "../adapters/discord-rest-message-adapter.js";
 
 export class ScopedDiscordReader {
@@ -32,6 +33,48 @@ export class ScopedDiscordReader {
         guildId: guild.id, guildName: guild.name,
         channelId: channel.id, channelName: channel.name,
       }));
+  }
+
+  async listThreads(channelId: string, options: {
+    serverId?: string; status?: "active" | "archived" | "all";
+    archiveLimit?: number; beforePublic?: string; beforePrivate?: string;
+  } = {}) {
+    const { guild, channel } = await resolveReadableChannel(this.rest, this.scope, channelId, options.serverId);
+    return {
+      parentChannel: channel,
+      ...(await listChannelThreadsRest(this.rest, guild.id, channel.id, options)),
+    };
+  }
+
+  async threadMessages(threadId: string, parentChannelId: string, options: {
+    serverId?: string; limit?: number; before?: string; includeStarter?: boolean;
+  } = {}) {
+    // Authorize the parent before ANY thread-specific API request.
+    const { guild, channel } = await resolveReadableChannel(this.rest, this.scope, parentChannelId, options.serverId);
+    const thread = await getThreadRest(this.rest, guild.id, channel.id, threadId);
+    if (!thread) throw new AccessDeniedError();
+    const raw = await getThreadMessagesPageRest(this.rest, threadId, options.limit, options.before);
+    const context = {
+      guildId: guild.id, guildName: guild.name,
+      channelId: thread.id, channelName: thread.name,
+    };
+    const messages = raw.filter(message => message.channel_id === threadId)
+      .map(message => toBridgeMessageRest(message, context));
+    const first = raw[0];
+    const starter = options.includeStarter === false
+      ? null
+      : await getThreadStarterMessageRest(this.rest, channel.id, thread.id);
+    return {
+      thread, parentChannel: channel, messages,
+      starterMessage: starter && starter.channel_id === channel.id
+        ? toBridgeMessageRest(starter, {
+            guildId: guild.id, guildName: guild.name,
+            channelId: channel.id, channelName: channel.name,
+          })
+        : null,
+      nextBefore: raw.length === (options.limit ?? 50) ? first?.id ?? null : null,
+      historyComplete: raw.length < (options.limit ?? 50),
+    };
   }
 
   async contextChannels(serverId?: string, requestedIds?: string[]) {
@@ -70,7 +113,7 @@ export class ScopedDiscordReader {
   async search(options: {
     serverId?: string; channelId?: string; query?: string;
     authorId?: string; after?: string; before?: string;
-    limit?: number; sort?: DiscordMessageSearchSort;
+    limit?: number; sort?: DiscordMessageSearchSort; includeThreads?: boolean;
   }) {
     const resolved = options.channelId
       ? await resolveReadableChannel(this.rest, this.scope, options.channelId, options.serverId)
@@ -86,9 +129,30 @@ export class ScopedDiscordReader {
       };
     }
     const byId = new Map(channels.map((channel) => [channel.id, channel]));
+    let threadScanComplete = true;
+    let threadsScanned = 0;
+    if (options.includeThreads) {
+      const parents = channels.slice(0, 10);
+      for (const parent of parents) {
+        const page = await listChannelThreadsRest(this.rest, guild.id, parent.id, { archiveLimit: 25 });
+        for (const thread of page.threads) {
+          if (byId.size >= 500) { threadScanComplete = false; break; }
+          byId.set(thread.id, { id: thread.id, name: thread.name, guildId: guild.id });
+          threadsScanned++;
+        }
+        if (page.hasMorePublic || page.hasMorePrivate) threadScanComplete = false;
+      }
+      if (channels.length > 10 || byId.size >= 500) threadScanComplete = false;
+    }
+    if (byId.size > 500) {
+      // Discord search accepts at most 500 channel IDs.
+      const keep = new Set([...byId.keys()].slice(0, 500));
+      for (const key of byId.keys()) if (!keep.has(key)) byId.delete(key);
+      threadScanComplete = false;
+    }
     const search = await searchGuildMessagesRest(this.rest, guild.id, {
       content: options.query,
-      channelIds: channels.map((channel) => channel.id),
+      channelIds: [...byId.keys()],
       authorIds: options.authorId ? [options.authorId] : undefined,
       after: options.after, before: options.before,
       limit: options.limit, sort: options.sort,
@@ -103,8 +167,10 @@ export class ScopedDiscordReader {
     return {
       totalResults: messages.length === search.messages.length ? search.totalResults : messages.length,
       returnedResults: messages.length,
-      searchMode: search.searchMode, historyComplete: search.historyComplete,
+      searchMode: search.searchMode, historyComplete: search.historyComplete && threadScanComplete,
       scannedMessages: search.scannedMessages ?? null, messages,
+      threadSearch: { enabled: Boolean(options.includeThreads), threadsScanned,
+        scopeComplete: !options.includeThreads || threadScanComplete },
     };
   }
 
